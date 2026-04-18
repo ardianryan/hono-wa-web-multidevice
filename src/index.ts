@@ -788,7 +788,7 @@ app.post("/broadcast/:sessionId", async (c) => {
 // ─── SERVER START ─────────────────────────────────────────────────────────────
 restoreSessionsFromFile();
 
-serve({ fetch: app.fetch, port: 3040 }, (info) => {
+serve({ fetch: app.fetch, port: 3000 }, (info) => {
   const webhookUrl = process.env.WEBHOOK_URL ?? "(tidak dikonfigurasi)";
   console.log(`
 ╔════════════════════════════════════════════╗
