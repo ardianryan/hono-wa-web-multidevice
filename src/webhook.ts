@@ -3,7 +3,7 @@
 // URL webhook dikonfigurasi via environment variable WEBHOOK_URL
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─── TIPE PAYLOAD WEBHOOK ────────────────────────────────────────────────────
+// ─── TIPE PAYLOAD WEBHOOK ─────────────────────────────────────────────────────
 export type WebhookEvent =
   | "message.received" // Pesan masuk dari kontak/grup
   | "message.sent" // Pesan berhasil dikirim via API
@@ -19,31 +19,24 @@ export type WebhookPayload = {
 };
 
 // ─── HELPER: Ambil URL webhook dari env ──────────────────────────────────────
-const getWebhookUrl = (): string | null => {
-  return process.env.WEBHOOK_URL ?? null;
-};
+const getWebhookUrl = (): string | null => process.env.WEBHOOK_URL ?? null;
 
 // ─── CORE: Kirim payload ke URL webhook ──────────────────────────────────────
 export const sendWebhook = async (payload: WebhookPayload): Promise<void> => {
   const url = getWebhookUrl();
-
-  if (!url) {
-    // Tidak ada URL yang dikonfigurasi — lewati diam-diam
-    return;
-  }
+  if (!url) return;
 
   try {
     const res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // Opsional: tambahkan header secret untuk keamanan
         ...(process.env.WEBHOOK_SECRET
           ? { "X-Webhook-Secret": process.env.WEBHOOK_SECRET }
           : {}),
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10_000), // Timeout 10 detik
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!res.ok) {
@@ -57,7 +50,6 @@ export const sendWebhook = async (payload: WebhookPayload): Promise<void> => {
       );
     }
   } catch (err: any) {
-    // Jangan crash server meski webhook gagal
     console.error(
       `[webhook] Error saat kirim — event: ${payload.event}:`,
       err?.message ?? err,
