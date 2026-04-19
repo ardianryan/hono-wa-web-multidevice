@@ -314,3 +314,15 @@ docker compose up -d
 - Format nomor HP: `08xx` atau `62xx` — awalan `0` otomatis dikonversi ke `62`.
 - Broadcast dibatasi maksimal **200 nomor** per request.
 - Mount volume `/app/.wwebjs_auth` agar sesi tidak perlu scan ulang setelah container restart.
+
+## Lisensi
+
+Project ini menggunakan lisensi **CC BY-NC-ND 4.0**:
+
+- Wajib mencantumkan kredit/attribution
+- Non-komersial (tidak boleh dijual / dipakai untuk tujuan komersial)
+- No-derivatives (tidak boleh dimodifikasi lalu dibagikan ulang)
+
+Catatan dependency:
+
+- `whatsapp-web.js` berlisensi **Apache License 2.0** dan tidak tercakup oleh lisensi project ini. Saat mendistribusikan aplikasi, tetap wajib mematuhi lisensi dependency tersebut. [wwebjs docs](https://docs.wwebjs.dev/#license)
