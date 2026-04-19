@@ -3,7 +3,9 @@
 // URL webhook dikonfigurasi via environment variable WEBHOOK_URL
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { getDb } from "./db.js";
+import { db as ormDb } from "./db.js";
+import { eq } from "drizzle-orm";
+import { waSessions } from "./schema.js";
 
 export type WebhookEvent =
   | "message.received"
@@ -39,12 +41,12 @@ const getWebhookUrlForSession = async (sessionId: string): Promise<string | null
   const fallback = normalizeWebhookUrl(process.env.WEBHOOK_URL);
 
   try {
-    const db = getDb();
-    const res = await db.query<{ webhook_url: string | null }>(
-      `select webhook_url from wa_sessions where session_id = $1 limit 1`,
-      [sessionId],
-    );
-    const url = normalizeWebhookUrl(res.rows[0]?.webhook_url) ?? fallback;
+    const result = await ormDb
+      .select({ webhookUrl: waSessions.webhookUrl })
+      .from(waSessions)
+      .where(eq(waSessions.sessionId, sessionId))
+      .limit(1);
+    const url = normalizeWebhookUrl(result[0]?.webhookUrl) ?? fallback;
     webhookUrlCache.set(sessionId, { url, expiresAt: now + 30_000 });
     return url;
   } catch {

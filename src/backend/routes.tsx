@@ -57,8 +57,10 @@ import {
   updateUserProfilePhotoUrl,
   verifyPassword,
 } from "./auth.js";
-import { ensureDefaultSettings, ensureSchema, getDb } from "./db.js";
+import { db as ormDb, ensureDefaultSettings, ensureSchema, getDb } from "./db.js";
 import { invalidateWebhookCache } from "./webhook.js";
+import { and, eq } from "drizzle-orm";
+import { waSessions } from "./schema.js";
 
 const require = createRequire(import.meta.url);
 const { MessageMedia } = require("whatsapp-web.js") as {
@@ -125,12 +127,12 @@ const requireApiKey: MiddlewareHandler<{ Variables: { authUser: User } }> = asyn
 
 const isSessionAllowedForUser = async (user: User, sessionId: string) => {
   if (user.role === "admin") return true;
-  const db = getDb();
-  const res = await db.query<{ ok: number }>(
-    `select 1 as ok from wa_sessions where user_id = $1 and session_id = $2 limit 1`,
-    [user.id, sessionId],
-  );
-  return Boolean(res.rows[0]?.ok);
+  const result = await ormDb
+    .select()
+    .from(waSessions)
+    .where(and(eq(waSessions.userId, user.id), eq(waSessions.sessionId, sessionId)))
+    .limit(1);
+  return result.length > 0;
 };
 
 const md5Hex = (value: string) =>
@@ -848,19 +850,20 @@ router.post("/admin/sessions/webhook", requireAuth, async (c) => {
     }
   }
 
-  const db = getDb();
-  const res =
+  const updated =
     user.role === "admin"
-      ? await db.query(
-          `update wa_sessions set webhook_url = $2 where session_id = $1`,
-          [sessionId, webhookUrl],
-        )
-      : await db.query(
-          `update wa_sessions set webhook_url = $3 where session_id = $1 and user_id = $2`,
-          [sessionId, user.id, webhookUrl],
-        );
+      ? await ormDb
+          .update(waSessions)
+          .set({ webhookUrl })
+          .where(eq(waSessions.sessionId, sessionId))
+          .returning({ id: waSessions.id })
+      : await ormDb
+          .update(waSessions)
+          .set({ webhookUrl })
+          .where(and(eq(waSessions.sessionId, sessionId), eq(waSessions.userId, user.id)))
+          .returning({ id: waSessions.id });
 
-  if ((res as any).rowCount === 0) {
+  if (!updated.length) {
     return c.redirect(withToast("/admin/sessions", "Gagal menyimpan webhook", "error"));
   }
 

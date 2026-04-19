@@ -1,5 +1,7 @@
 import crypto from "crypto";
-import { getDb, getSetting, setSetting } from "./db.js";
+import { db, getSetting, setSetting } from "./db.js";
+import { and, desc, eq, gt } from "drizzle-orm";
+import { authSessions, users, waSessions } from "./schema.js";
 
 export type Role = "admin" | "user";
 
@@ -15,30 +17,18 @@ export type User = {
   apiKeyCreatedAt?: string | null;
 };
 
-type DbUserRow = {
-  id: string;
-  username: string;
-  password_hash: string;
-  role: string;
-  max_devices: number;
-  created_at: string;
-  email?: string | null;
-  profile_photo_url?: string | null;
-  api_key_hash?: string | null;
-  api_key_last4?: string | null;
-  api_key_created_at?: string | null;
-};
+type DbUserRow = typeof users.$inferSelect;
 
 const toUser = (row: DbUserRow): User => ({
   id: row.id,
   username: row.username,
   role: (row.role === "admin" ? "admin" : "user") as Role,
-  maxDevices: row.max_devices,
-  createdAt: row.created_at,
+  maxDevices: row.maxDevices,
+  createdAt: row.createdAt.toISOString(),
   email: row.email ?? null,
-  profilePhotoUrl: row.profile_photo_url ?? null,
-  apiKeyLast4: row.api_key_last4 ?? null,
-  apiKeyCreatedAt: row.api_key_created_at ?? null,
+  profilePhotoUrl: row.profilePhotoUrl ?? null,
+  apiKeyLast4: row.apiKeyLast4 ?? null,
+  apiKeyCreatedAt: row.apiKeyCreatedAt?.toISOString() ?? null,
 });
 
 const scryptParams = {
@@ -109,22 +99,21 @@ export const verifyPassword = async (
 };
 
 export const ensureDefaultAdmin = async (): Promise<void> => {
-  const db = getDb();
-  const res = await db.query<{ count: string }>(
-    `select count(*)::text as count from users where role = 'admin'`,
-  );
-  const count = Number(res.rows[0]?.count ?? "0");
-  if (count > 0) return;
+  const adminCount = await db.select().from(users).where(eq(users.role, "admin"));
+  if (adminCount.length > 0) return;
 
   const username = process.env.DEFAULT_ADMIN_USERNAME ?? "admin";
-  const password = process.env.DEFAULT_ADMIN_PASSWORD ?? "admin";
+  const password = process.env.DEFAULT_ADMIN_PASSWORD ?? "admin123";
   const passwordHash = await hashPassword(password);
   const id = crypto.randomUUID();
 
-  await db.query(
-    `insert into users(id, username, password_hash, role, max_devices) values ($1, $2, $3, 'admin', $4)`,
-    [id, username, passwordHash, 999],
-  );
+  await db.insert(users).values({
+    id,
+    username,
+    passwordHash,
+    role: "admin",
+    maxDevices: 999,
+  });
 };
 
 export const getMaintenanceMode = async (): Promise<boolean> => {
@@ -168,33 +157,23 @@ export const setAppLogoUrl = async (url: string | null): Promise<void> => {
 export const getUserByUsername = async (
   username: string,
 ): Promise<(User & { passwordHash: string }) | null> => {
-  const db = getDb();
-  const res = await db.query<DbUserRow>(
-    `select id, username, password_hash, role, max_devices, created_at, email, profile_photo_url, api_key_last4, api_key_created_at from users where username = $1`,
-    [username],
-  );
-  const row = res.rows[0];
+  const result = await db.select().from(users).where(eq(users.username, username));
+  const row = result[0];
   if (!row) return null;
-  return { ...toUser(row), passwordHash: row.password_hash };
+  const user = toUser(row);
+  return { ...user, passwordHash: row.passwordHash };
 };
 
 export const getUserById = async (id: string): Promise<User | null> => {
-  const db = getDb();
-  const res = await db.query<DbUserRow>(
-    `select id, username, password_hash, role, max_devices, created_at, email, profile_photo_url, api_key_last4, api_key_created_at from users where id = $1`,
-    [id],
-  );
-  const row = res.rows[0];
+  const result = await db.select().from(users).where(eq(users.id, id));
+  const row = result[0];
   if (!row) return null;
   return toUser(row);
 };
 
 export const listUsers = async (): Promise<User[]> => {
-  const db = getDb();
-  const res = await db.query<DbUserRow>(
-    `select id, username, password_hash, role, max_devices, created_at, email, profile_photo_url, api_key_last4, api_key_created_at from users order by created_at desc`,
-  );
-  return res.rows.map(toUser);
+  const result = await db.select().from(users).orderBy(desc(users.createdAt));
+  return result.map((row) => toUser(row));
 };
 
 export const createUser = async (input: {
@@ -203,13 +182,15 @@ export const createUser = async (input: {
   role: Role;
   maxDevices: number;
 }): Promise<User> => {
-  const db = getDb();
   const id = crypto.randomUUID();
   const passwordHash = await hashPassword(input.password);
-  await db.query(
-    `insert into users(id, username, password_hash, role, max_devices) values ($1, $2, $3, $4, $5)`,
-    [id, input.username, passwordHash, input.role, input.maxDevices],
-  );
+  await db.insert(users).values({
+    id,
+    username: input.username,
+    passwordHash,
+    role: input.role,
+    maxDevices: input.maxDevices,
+  });
   const user = await getUserById(id);
   if (!user) throw new Error("user_create_failed");
   return user;
@@ -224,160 +205,139 @@ export const updateUser = async (
     password?: string;
   },
 ): Promise<void> => {
-  const db = getDb();
   if (input.password && input.password.length > 0) {
     const passwordHash = await hashPassword(input.password);
-    await db.query(
-      `update users set username = $2, password_hash = $3, role = $4, max_devices = $5, updated_at = now() where id = $1`,
-      [id, input.username, passwordHash, input.role, input.maxDevices],
-    );
+    await db
+      .update(users)
+      .set({
+        username: input.username,
+        passwordHash,
+        role: input.role,
+        maxDevices: input.maxDevices,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, id));
     return;
   }
-  await db.query(
-    `update users set username = $2, role = $3, max_devices = $4, updated_at = now() where id = $1`,
-    [id, input.username, input.role, input.maxDevices],
-  );
+  await db
+    .update(users)
+    .set({
+      username: input.username,
+      role: input.role,
+      maxDevices: input.maxDevices,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, id));
 };
 
 export const deleteUser = async (id: string): Promise<void> => {
-  const db = getDb();
-  await db.query(`delete from users where id = $1`, [id]);
+  await db.delete(users).where(eq(users.id, id));
 };
 
 export const createAuthSession = async (userId: string): Promise<string> => {
-  const db = getDb();
   const id = crypto.randomUUID();
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  await db.query(
-    `insert into auth_sessions(id, user_id, expires_at) values ($1, $2, $3)`,
-    [id, userId, expiresAt],
-  );
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(authSessions).values({
+    id,
+    userId,
+    expiresAt,
+  });
   return id;
 };
 
 export const deleteAuthSession = async (sessionId: string): Promise<void> => {
-  const db = getDb();
-  await db.query(`delete from auth_sessions where id = $1`, [sessionId]);
+  await db.delete(authSessions).where(eq(authSessions.id, sessionId));
 };
 
 export const getUserBySessionId = async (
   sessionId: string,
 ): Promise<User | null> => {
-  const db = getDb();
-  const res = await db.query<DbUserRow>(
-    `
-      select u.id, u.username, u.password_hash, u.role, u.max_devices, u.created_at, u.email, u.profile_photo_url, u.api_key_last4, u.api_key_created_at
-      from auth_sessions s
-      join users u on u.id = s.user_id
-      where s.id = $1 and s.expires_at > now()
-    `,
-    [sessionId],
-  );
-  const row = res.rows[0];
+  const result = await db
+    .select()
+    .from(authSessions)
+    .innerJoin(users, eq(authSessions.userId, users.id))
+    .where(and(eq(authSessions.id, sessionId), gt(authSessions.expiresAt, new Date())));
+  const row = result[0];
   if (!row) return null;
-  return toUser(row);
+  return toUser(row.users);
 };
 
 export const getUserByApiKey = async (apiKey: string): Promise<User | null> => {
-  const db = getDb();
   const hash = hashApiKey(apiKey);
-  const res = await db.query<DbUserRow>(
-    `select id, username, password_hash, role, max_devices, created_at, email, profile_photo_url, api_key_last4, api_key_created_at
-     from users where api_key_hash = $1`,
-    [hash],
-  );
-  const row = res.rows[0];
+  const result = await db.select().from(users).where(eq(users.apiKeyHash, hash));
+  const row = result[0];
   if (!row) return null;
   return toUser(row);
 };
 
 export const rotateApiKeyForUser = async (userId: string): Promise<string> => {
-  const db = getDb();
   const apiKey = generateApiKey();
   const hash = hashApiKey(apiKey);
   const last4 = apiKey.slice(-4);
-  await db.query(
-    `update users set api_key_hash = $2, api_key_last4 = $3, api_key_created_at = now(), updated_at = now() where id = $1`,
-    [userId, hash, last4],
-  );
+  await db
+    .update(users)
+    .set({
+      apiKeyHash: hash,
+      apiKeyLast4: last4,
+      apiKeyCreatedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId));
   return apiKey;
 };
 
 export const updateUserEmail = async (userId: string, email: string | null) => {
-  const db = getDb();
-  await db.query(`update users set email = $2, updated_at = now() where id = $1`, [
-    userId,
-    email,
-  ]);
+  await db.update(users).set({ email, updatedAt: new Date() }).where(eq(users.id, userId));
 };
 
 export const updateUserProfilePhotoUrl = async (
   userId: string,
   profilePhotoUrl: string | null,
 ) => {
-  const db = getDb();
-  await db.query(
-    `update users set profile_photo_url = $2, updated_at = now() where id = $1`,
-    [userId, profilePhotoUrl],
-  );
+  await db
+    .update(users)
+    .set({ profilePhotoUrl, updatedAt: new Date() })
+    .where(eq(users.id, userId));
 };
 
 export const updateUserPassword = async (userId: string, password: string) => {
-  const db = getDb();
   const passwordHash = await hashPassword(password);
-  await db.query(
-    `update users set password_hash = $2, updated_at = now() where id = $1`,
-    [userId, passwordHash],
-  );
+  await db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, userId));
 };
 
 export const listWaSessionsForUser = async (userId: string) => {
-  const db = getDb();
-  const res = await db.query<{
-    id: string;
-    session_id: string;
-    created_at: string;
-    webhook_url: string | null;
-  }>(
-    `select id, session_id, created_at, webhook_url from wa_sessions where user_id = $1 order by created_at desc`,
-    [userId],
-  );
-  return res.rows.map((r) => ({
+  const result = await db
+    .select()
+    .from(waSessions)
+    .where(eq(waSessions.userId, userId))
+    .orderBy(desc(waSessions.createdAt));
+  return result.map((r) => ({
     id: r.id,
-    sessionId: r.session_id,
-    createdAt: r.created_at,
-    webhookUrl: r.webhook_url,
+    sessionId: r.sessionId,
+    createdAt: r.createdAt.toISOString(),
+    webhookUrl: r.webhookUrl ?? null,
   }));
 };
 
 export const listWaSessionsAll = async () => {
-  const db = getDb();
-  const res = await db.query<{
-    id: string;
-    session_id: string;
-    created_at: string;
-    user_id: string;
-    webhook_url: string | null;
-  }>(`select id, session_id, created_at, user_id, webhook_url from wa_sessions order by created_at desc`);
-  return res.rows.map(
-    (r) => ({
+  const result = await db.select().from(waSessions).orderBy(desc(waSessions.createdAt));
+  return result.map((r) => ({
     id: r.id,
-    sessionId: r.session_id,
-    createdAt: r.created_at,
-    userId: r.user_id,
-    webhookUrl: r.webhook_url,
-    }),
-  );
+    sessionId: r.sessionId,
+    createdAt: r.createdAt.toISOString(),
+    userId: r.userId,
+    webhookUrl: r.webhookUrl ?? null,
+  }));
 };
 
 export const createWaSessionForUser = async (
   userId: string,
   sessionId: string,
 ): Promise<void> => {
-  const db = getDb();
   const id = crypto.randomUUID();
-  await db.query(
-    `insert into wa_sessions(id, user_id, session_id) values ($1, $2, $3)`,
-    [id, userId, sessionId],
-  );
+  await db.insert(waSessions).values({
+    id,
+    userId,
+    sessionId,
+  });
 };

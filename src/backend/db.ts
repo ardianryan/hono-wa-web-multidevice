@@ -1,15 +1,24 @@
 import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { eq } from "drizzle-orm";
+import { appSettings, authSessions, users, waSessions } from "./schema.js";
 
 const pool = new Pool({
-  host: process.env.PGHOST ?? "localhost",
-  port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
-  user: process.env.PGUSER ?? "ardianryan",
-  password: process.env.PGPASSWORD,
-  database: process.env.PGDATABASE ?? "hono_wa",
+  ...(process.env.DATABASE_URL
+    ? { connectionString: process.env.DATABASE_URL }
+    : {
+        host: process.env.PGHOST ?? "localhost",
+        port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
+        user: process.env.PGUSER ?? "postgres",
+        password: process.env.PGPASSWORD,
+        database: process.env.PGDATABASE ?? "hono_wa",
+      }),
   max: process.env.PGPOOL_MAX ? Number(process.env.PGPOOL_MAX) : 10,
 });
 
 export const getDb = () => pool;
+export const db = drizzle(pool);
+export const appSchema = { appSettings, users, authSessions, waSessions };
 
 export const ensureSchema = async () => {
   const db = getDb();
@@ -70,23 +79,25 @@ export const ensureSchema = async () => {
 };
 
 export const getSetting = async (key: string): Promise<string | null> => {
-  const db = getDb();
-  const res = await db.query<{ value: string }>(
-    `select value from app_settings where key = $1`,
-    [key],
-  );
-  return res.rows[0]?.value ?? null;
+  const result = await db
+    .select({ value: appSettings.value })
+    .from(appSettings)
+    .where(eq(appSettings.key, key));
+  return result[0]?.value ?? null;
 };
 
 export const setSetting = async (key: string, value: string): Promise<void> => {
-  const db = getDb();
-  await db.query(
-    `
-      insert into app_settings(key, value) values ($1, $2)
-      on conflict (key) do update set value = excluded.value, updated_at = now()
-    `,
-    [key, value],
-  );
+  const existing = await db.select().from(appSettings).where(eq(appSettings.key, key));
+
+  if (existing.length > 0) {
+    await db
+      .update(appSettings)
+      .set({ value, updatedAt: new Date() })
+      .where(eq(appSettings.key, key));
+    return;
+  }
+
+  await db.insert(appSettings).values({ key, value });
 };
 
 export const ensureDefaultSettings = async () => {
