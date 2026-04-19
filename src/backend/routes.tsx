@@ -215,7 +215,7 @@ router.get("/login", async (c) => {
         appName="HonoWA"
         appDescription="Kelola sesi WhatsApp, broadcast, dan status dengan kontrol akses pengguna."
         maintenance={false}
-        error="Database belum tersambung. Pastikan konfigurasi PGHOST/PGDATABASE/PGUSER/PGPASSWORD benar."
+          error="Database belum tersambung. Pastikan DATABASE_URL atau PGHOST/PGDATABASE/PGUSER/PGPASSWORD benar, dan Postgres sedang berjalan."
       />,
       500,
     );
@@ -246,7 +246,7 @@ router.post("/login", async (c) => {
         appName="HonoWA"
         appDescription="Kelola sesi WhatsApp, broadcast, dan status dengan kontrol akses pengguna."
         maintenance={false}
-        error="Database belum tersambung. Pastikan konfigurasi PGHOST/PGDATABASE/PGUSER/PGPASSWORD benar."
+        error="Database belum tersambung. Pastikan DATABASE_URL atau PGHOST/PGDATABASE/PGUSER/PGPASSWORD benar, dan Postgres sedang berjalan."
       />,
       500,
     );
