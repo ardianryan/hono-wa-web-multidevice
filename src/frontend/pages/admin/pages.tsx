@@ -244,6 +244,7 @@ export const UserFormPage: FC<
 export const SettingsPage: FC<
   LayoutBase & {
     maintenance: boolean;
+    logoIsDefault?: boolean;
     alert?: string;
   }
 > = (props) => (
@@ -277,7 +278,9 @@ export const SettingsPage: FC<
                   style="width:48px;height:48px;border-radius:14px;object-fit:cover;border:1px solid rgba(199,196,216,0.35);background:#fff;"
                 />
                 <div class="muted" style="font-size: 13px;">
-                  Logo ini dipakai di login, sidebar, favicon, dan meta tags.
+                  {props.logoIsDefault
+                    ? "Menggunakan logo default. Upload untuk mengganti."
+                    : "Logo ini dipakai di login, sidebar, favicon, dan meta tags."}
                 </div>
               </div>
             ) : (

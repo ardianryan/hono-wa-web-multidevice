@@ -147,16 +147,20 @@ const getAvatarUrl = (user: User) => {
   return getGravatarUrl(key ?? user.username);
 };
 
+const DEFAULT_APP_LOGO_URL = "/assets/uploads/honowa.png";
+
 const getUiSettings = async () => {
   const [appName, appDescription, appLogoUrl] = await Promise.all([
     getAppName(),
     getAppDescription(),
     getAppLogoUrl(),
   ]);
+  const customLogoUrl = appLogoUrl?.trim() ? appLogoUrl : null;
   return {
     appName,
     appDescription,
-    appLogoUrl: appLogoUrl ?? undefined,
+    appLogoUrl: customLogoUrl ?? DEFAULT_APP_LOGO_URL,
+    appLogoIsDefault: !customLogoUrl,
   };
 };
 
@@ -536,7 +540,8 @@ router.post("/admin/users/:id/delete", requireAuth, requireAdmin, async (c) => {
 
 router.get("/admin/settings", requireAuth, requireAdmin, async (c) => {
   const user = c.get("authUser");
-  const { appName, appDescription, appLogoUrl } = await getUiSettings();
+  const { appName, appDescription, appLogoUrl, appLogoIsDefault } =
+    await getUiSettings();
   const avatarUrl = getAvatarUrl(user);
   const maintenance = await getMaintenanceMode();
   return c.html(
@@ -545,6 +550,7 @@ router.get("/admin/settings", requireAuth, requireAdmin, async (c) => {
       username={user.username}
       appDescription={appDescription}
       logoUrl={appLogoUrl}
+      logoIsDefault={appLogoIsDefault}
       avatarUrl={avatarUrl}
       maintenance={maintenance}
     />,
@@ -559,8 +565,16 @@ router.post("/admin/settings", requireAuth, requireAdmin, async (c) => {
   const appDescription = String(body.appDescription ?? "").trim();
   const logoFile = (body as any).logo;
 
-  const logoUrl = await saveUploadedFile(logoFile, "app-logo");
-  if (logoFile && !logoUrl) {
+  const hasLogoUpload =
+    logoFile &&
+    typeof logoFile.arrayBuffer === "function" &&
+    Number((logoFile as any).size ?? 0) > 0;
+
+  const logoUrl = hasLogoUpload
+    ? await saveUploadedFile(logoFile, "app-logo")
+    : null;
+
+  if (hasLogoUpload && !logoUrl) {
     const ui = await getUiSettings();
     return c.html(
       <SettingsPage
@@ -568,6 +582,7 @@ router.post("/admin/settings", requireAuth, requireAdmin, async (c) => {
         username={user.username}
         appDescription={ui.appDescription}
         logoUrl={ui.appLogoUrl}
+        logoIsDefault={ui.appLogoIsDefault}
         avatarUrl={getAvatarUrl(user)}
         maintenance={await getMaintenanceMode()}
         alert="Gagal upload logo (format tidak didukung atau ukuran terlalu besar)."
