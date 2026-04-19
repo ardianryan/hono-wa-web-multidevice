@@ -40,6 +40,8 @@ http://localhost:3000/login
 Minimal:
 
 ```env
+DATABASE_URL=postgresql://your_username:your_password@localhost:5432/hono_wa
+
 PGHOST=localhost
 PGPORT=5432
 PGDATABASE=hono_wa
@@ -63,6 +65,26 @@ Catatan webhook:
 - `WEBHOOK_URL` adalah **default fallback** (dipakai jika session/device tidak punya webhook khusus).
 - Webhook **per device/session** bisa diatur dari UI: `GET /admin/sessions` → tombol **Webhook** pada masing-masing session.
 - Saat `WEBHOOK_SECRET` diisi, server akan menambahkan header `X-Webhook-Secret: <value>` pada setiap request webhook.
+
+## Database (Drizzle ORM)
+
+Project memakai **Drizzle ORM** untuk query ke PostgreSQL, dengan schema di:
+
+- `src/backend/schema.ts`
+- `drizzle.config.ts`
+
+Setup database (disarankan untuk environment baru):
+
+```bash
+npm install
+npm run db:push
+npm run dev
+```
+
+Catatan:
+
+- `npm run db:push` membutuhkan `DATABASE_URL` (atau fallback dari `PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD` via `drizzle.config.ts`).
+- Aplikasi juga tetap menjalankan bootstrap schema saat startup (`ensureSchema()`), namun `db:push` tetap disarankan untuk memastikan schema sesuai definisi Drizzle.
 
 ## UI Admin
 
