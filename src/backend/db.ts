@@ -143,4 +143,7 @@ export const ensureDefaultSettings = async () => {
 
   const logoUrl = await getSetting("app_logo_url");
   if (logoUrl === null) await setSetting("app_logo_url", "");
+
+  const mediaMaxMb = await getSetting("media_max_mb");
+  if (mediaMaxMb === null) await setSetting("media_max_mb", "10");
 };

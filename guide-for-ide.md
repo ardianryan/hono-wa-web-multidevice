@@ -17,11 +17,11 @@ npm run dev
 - Backend (Hono + Node):
   - `src/server.ts` — entrypoint server (mount frontend+backend, serve static)
   - `src/backend/routes.tsx` — routing utama (auth, admin pages, actions, QR modal API)
-  - `src/backend/auth.ts` — auth, user CRUD, settings helpers (Postgres via Drizzle)
+  - `src/backend/auth.ts` — auth, user CRUD, settings helpers (Postgres via Drizzle) + action logs
   - `src/backend/db.ts` — koneksi PG + Drizzle instance + schema bootstrap (`ensureSchema`)
-  - `src/backend/schema.ts` — definisi schema Drizzle (users, auth_sessions, wa_sessions, app_settings)
+  - `src/backend/schema.ts` — definisi schema Drizzle (users, auth_sessions, wa_sessions, app_settings, action_logs)
   - `drizzle.config.ts` — konfigurasi drizzle-kit (schema path + koneksi DB)
-  - `src/backend/session-manager.ts` — runtime WA sessions (Map), QR/ready status
+  - `src/backend/session-manager.ts` — runtime WA sessions (Map), QR/ready status, broadcast queue
   - `src/backend/webhook.ts` — pengiriman webhook (resolve URL per-session dari DB, fallback `WEBHOOK_URL`)
 - Frontend (Hono/JSX):
   - `src/frontend/pages/auth/login.tsx` — halaman login (meta + favicon)
@@ -39,6 +39,17 @@ npm run dev
 - Hindari menambah file baru kecuali benar-benar dibutuhkan.
 - Jangan menambahkan komentar di code kecuali diminta.
 
+## Fitur Terbaru (Ringkas)
+
+- Message & Broadcast mendukung media:
+  - URL (diutamakan) atau upload file
+  - tipe umum: image/video/audio/document
+- Batas ukuran media bisa diatur dari admin settings: `media_max_mb` (default 10MB)
+- Broadcast admin memakai queue + delay minimal 5 detik/nomor (wajib)
+- History (Message/Broadcast/Status):
+  - Resend, Unsend (dibatasi waktu WhatsApp), Delete
+  - Bulk action: Delete Selected, Delete All, Download CSV
+
 ## Pola Pengembangan (Disarankan)
 
 ### 1) Menambah halaman Admin baru
@@ -54,6 +65,10 @@ npm run dev
 2. Buat getter/setter di `src/backend/auth.ts` (pakai `getSetting`/`setSetting`).
 3. Render & submit form di `SettingsPage` (`src/frontend/pages/admin/pages.tsx`).
 4. Update route `/admin/settings` di `src/backend/routes.tsx` untuk persist.
+
+Contoh setting yang sudah ada:
+
+- `media_max_mb` (batas ukuran media untuk upload & download via URL)
 
 ### 3) Perubahan schema users
 
@@ -91,6 +106,11 @@ Catatan Docker:
 - URL yang disimpan ke DB berbentuk `/assets/uploads/<filename>`.
 - Static route: `src/server.ts` sudah serve `public` di path `/assets/*`.
 
+Catatan media Message/Broadcast:
+
+- Jika media memakai URL, server akan fetch file lalu mengirim ke WhatsApp.
+- Jika media upload dari UI/API, file dibaca ke memory (dibatasi `media_max_mb`) lalu dikirim ke WhatsApp.
+
 ## Account / Avatar (Gravatar + Upload)
 
 - Avatar diprioritaskan dari `users.profile_photo_url`.
@@ -102,3 +122,4 @@ Catatan Docker:
 - Port bentrok: cek proses lain di 3000.
 - QR tidak muncul: cek status session di halaman Sessions dan cek log server.
 - Upload tidak muncul: pastikan file ada di `public/assets/uploads` dan URL diawali `/assets/uploads/`.
+- Unsend tidak aktif: cek `sentMessageIds` pada history (log lama tidak punya) atau sudah lewat window waktu WhatsApp.

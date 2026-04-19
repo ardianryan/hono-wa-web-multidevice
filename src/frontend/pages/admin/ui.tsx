@@ -217,6 +217,11 @@ const baseCss = `
   }
   .btn.danger { border: 1px solid rgba(186,26,26,0.25); color: #93000a; background: rgba(186,26,26,0.06); }
   .btn.danger:hover { background: rgba(186,26,26,0.10); }
+  .btn.warning { border: 1px solid rgba(245,158,11,0.28); color: #92400e; background: rgba(245,158,11,0.10); }
+  .btn.warning:hover { background: rgba(245,158,11,0.16); }
+  .btn.success { border: 1px solid rgba(34,197,94,0.28); color: #166534; background: rgba(34,197,94,0.10); }
+  .btn.success:hover { background: rgba(34,197,94,0.16); }
+  .btn:disabled, .btn[disabled] { opacity: 0.55; cursor: not-allowed; }
   .btnRow { display:flex; gap: 10px; flex-wrap: wrap; }
   .formRow { display:grid; grid-template-columns: 1fr; gap: 6px; margin-top: 12px; }
   .label { font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(70,69,85,0.55); }
