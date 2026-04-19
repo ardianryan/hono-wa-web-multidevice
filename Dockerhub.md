@@ -10,6 +10,7 @@ REST API + Admin Dashboard untuk mengelola sesi WhatsApp (multi-session) menggun
 docker run -d \
   --name whatsapp-api \
   -p 3000:3000 \
+  -e DATABASE_URL=postgresql://username:your_password@host.docker.internal:5432/hono_wa \
   -e PGHOST=host.docker.internal \
   -e PGPORT=5432 \
   -e PGDATABASE=hono_wa \
@@ -41,6 +42,7 @@ services:
     ports:
       - "3000:3000"
     environment:
+      DATABASE_URL: postgresql://username:your_password@host.docker.internal:5432/hono_wa
       PGHOST: host.docker.internal
       PGPORT: "5432"
       PGDATABASE: hono_wa
@@ -77,6 +79,24 @@ docker compose up -d
 ```
 http://localhost:3000
 ```
+
+---
+
+## 🧱 Database (Drizzle ORM)
+
+Schema Drizzle ada di `src/backend/schema.ts` dan konfigurasi drizzle-kit ada di `drizzle.config.ts`.
+
+Untuk setup database baru, jalankan dari host/CI (bukan dari container runtime):
+
+```bash
+npm install
+npm run db:push
+```
+
+Catatan:
+
+- Container runtime umumnya install dependency dengan `--omit=dev`, jadi `drizzle-kit` tidak tersedia jika dieksekusi langsung di container.
+- Aplikasi tetap menjalankan bootstrap schema saat startup (`ensureSchema()`), tapi `db:push` disarankan agar schema sesuai definisi Drizzle.
 
 ---
 

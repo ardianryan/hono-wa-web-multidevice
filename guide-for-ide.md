@@ -17,8 +17,10 @@ npm run dev
 - Backend (Hono + Node):
   - `src/server.ts` — entrypoint server (mount frontend+backend, serve static)
   - `src/backend/routes.tsx` — routing utama (auth, admin pages, actions, QR modal API)
-  - `src/backend/auth.ts` — auth, user CRUD, settings helpers (Postgres)
-  - `src/backend/db.ts` — koneksi PG + schema bootstrap (`ensureSchema`)
+  - `src/backend/auth.ts` — auth, user CRUD, settings helpers (Postgres via Drizzle)
+  - `src/backend/db.ts` — koneksi PG + Drizzle instance + schema bootstrap (`ensureSchema`)
+  - `src/backend/schema.ts` — definisi schema Drizzle (users, auth_sessions, wa_sessions, app_settings)
+  - `drizzle.config.ts` — konfigurasi drizzle-kit (schema path + koneksi DB)
   - `src/backend/session-manager.ts` — runtime WA sessions (Map), QR/ready status
   - `src/backend/webhook.ts` — pengiriman webhook (resolve URL per-session dari DB, fallback `WEBHOOK_URL`)
 - Frontend (Hono/JSX):
@@ -67,6 +69,20 @@ npm run dev
 - Setiap session/device bisa punya webhook sendiri di DB: kolom `wa_sessions.webhook_url` (ditambahkan via `ensureSchema()` dengan `alter table ... add column if not exists ...`).
 - UI pengaturan webhook ada di `GET /admin/sessions` (tombol **Webhook** per session).
 - Persist webhook via endpoint `POST /admin/sessions/webhook` (validasi session milik user, validasi URL http/https, simpan ke DB).
+
+### 5) Drizzle ORM (Database)
+
+- Schema Drizzle: `src/backend/schema.ts`
+- Konfigurasi drizzle-kit: `drizzle.config.ts`
+- Apply schema ke DB (disarankan untuk setup baru): `npm run db:push`
+- Koneksi DB:
+  - Prioritas: `DATABASE_URL`
+  - Fallback: `PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD`
+
+Catatan Docker:
+
+- Image runtime biasanya install dependency dengan `--omit=dev`, jadi `drizzle-kit` tidak tersedia di container.
+- Jalankan `npm run db:push` dari mesin host/CI, atau build image khusus yang menyertakan `drizzle-kit` jika ingin menjalankannya di container.
 
 ## Upload File (Logo / Foto Profil)
 
