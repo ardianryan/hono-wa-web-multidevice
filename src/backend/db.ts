@@ -65,6 +65,8 @@ export const ensureSchema = async () => {
       created_at timestamptz not null default now()
     );
   `);
+
+  await db.query(`alter table wa_sessions add column if not exists webhook_url text;`);
 };
 
 export const getSetting = async (key: string): Promise<string | null> => {

@@ -333,14 +333,20 @@ export const updateUserPassword = async (userId: string, password: string) => {
 
 export const listWaSessionsForUser = async (userId: string) => {
   const db = getDb();
-  const res = await db.query<{ id: string; session_id: string; created_at: string }>(
-    `select id, session_id, created_at from wa_sessions where user_id = $1 order by created_at desc`,
+  const res = await db.query<{
+    id: string;
+    session_id: string;
+    created_at: string;
+    webhook_url: string | null;
+  }>(
+    `select id, session_id, created_at, webhook_url from wa_sessions where user_id = $1 order by created_at desc`,
     [userId],
   );
-  return res.rows.map((r: { id: string; session_id: string; created_at: string }) => ({
+  return res.rows.map((r) => ({
     id: r.id,
     sessionId: r.session_id,
     createdAt: r.created_at,
+    webhookUrl: r.webhook_url,
   }));
 };
 
@@ -351,13 +357,15 @@ export const listWaSessionsAll = async () => {
     session_id: string;
     created_at: string;
     user_id: string;
-  }>(`select id, session_id, created_at, user_id from wa_sessions order by created_at desc`);
+    webhook_url: string | null;
+  }>(`select id, session_id, created_at, user_id, webhook_url from wa_sessions order by created_at desc`);
   return res.rows.map(
-    (r: { id: string; session_id: string; created_at: string; user_id: string }) => ({
+    (r) => ({
     id: r.id,
     sessionId: r.session_id,
     createdAt: r.created_at,
     userId: r.user_id,
+    webhookUrl: r.webhook_url,
     }),
   );
 };

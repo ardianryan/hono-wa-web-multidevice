@@ -58,6 +58,7 @@ import {
   verifyPassword,
 } from "./auth.js";
 import { ensureDefaultSettings, ensureSchema, getDb } from "./db.js";
+import { invalidateWebhookCache } from "./webhook.js";
 
 const require = createRequire(import.meta.url);
 const { MessageMedia } = require("whatsapp-web.js") as {
@@ -815,6 +816,56 @@ router.post("/admin/sessions/new", requireAuth, async (c) => {
       "success",
     ),
   );
+});
+
+router.post("/admin/sessions/webhook", requireAuth, async (c) => {
+  const user = c.get("authUser");
+  const body = await c.req.parseBody();
+  const sessionId = String(body.sessionId ?? "").trim();
+  const clear = String(body.clear ?? "").trim();
+  const rawWebhookUrl =
+    clear === "1" ? "" : String(body.webhookUrl ?? "").trim();
+
+  if (!sessionId) {
+    return c.redirect(withToast("/admin/sessions", "Session ID tidak valid", "error"));
+  }
+
+  const allowed = await isSessionAllowedForUser(user, sessionId);
+  if (!allowed) {
+    return c.redirect(withToast("/admin/sessions", "Session tidak valid untuk user ini", "error"));
+  }
+
+  let webhookUrl: string | null = null;
+  if (rawWebhookUrl) {
+    try {
+      const u = new URL(rawWebhookUrl);
+      if (u.protocol !== "http:" && u.protocol !== "https:") {
+        return c.redirect(withToast("/admin/sessions", "Webhook harus http/https", "error"));
+      }
+      webhookUrl = u.toString();
+    } catch {
+      return c.redirect(withToast("/admin/sessions", "Format webhook URL tidak valid", "error"));
+    }
+  }
+
+  const db = getDb();
+  const res =
+    user.role === "admin"
+      ? await db.query(
+          `update wa_sessions set webhook_url = $2 where session_id = $1`,
+          [sessionId, webhookUrl],
+        )
+      : await db.query(
+          `update wa_sessions set webhook_url = $3 where session_id = $1 and user_id = $2`,
+          [sessionId, user.id, webhookUrl],
+        );
+
+  if ((res as any).rowCount === 0) {
+    return c.redirect(withToast("/admin/sessions", "Gagal menyimpan webhook", "error"));
+  }
+
+  invalidateWebhookCache(sessionId);
+  return c.redirect(withToast("/admin/sessions", "Webhook tersimpan", "success"));
 });
 
 router.post("/admin/sessions/:sessionId/delete", requireAuth, async (c) => {

@@ -55,13 +55,20 @@ Opsional:
 ```env
 PORT=3000
 WEBHOOK_URL=http://localhost:3040/webhook
+WEBHOOK_SECRET=your_secret_value
 ```
+
+Catatan webhook:
+
+- `WEBHOOK_URL` adalah **default fallback** (dipakai jika session/device tidak punya webhook khusus).
+- Webhook **per device/session** bisa diatur dari UI: `GET /admin/sessions` → tombol **Webhook** pada masing-masing session.
+- Saat `WEBHOOK_SECRET` diisi, server akan menambahkan header `X-Webhook-Secret: <value>` pada setiap request webhook.
 
 ## UI Admin
 
 - Login: `GET /login`
 - Dashboard: `GET /admin`
-- Sessions: `GET /admin/sessions` (scan QR via modal)
+- Sessions: `GET /admin/sessions` (scan QR via modal, atur webhook per session)
 - API Docs + Generate API Key: `GET /admin/api-docs`
 
 ## API Auth (Integrasi)
@@ -165,6 +172,8 @@ docker run -d \
   -e PGPASSWORD=your_password \
   -e DEFAULT_ADMIN_USERNAME=admin \
   -e DEFAULT_ADMIN_PASSWORD=admin123 \
+  -e WEBHOOK_URL=http://host.docker.internal:3040/webhook \
+  -e WEBHOOK_SECRET=your_secret_value \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/.wwebjs_auth:/app/.wwebjs_auth \
   -v $(pwd)/.wwebjs_cache:/app/.wwebjs_cache \

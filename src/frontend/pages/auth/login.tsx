@@ -279,8 +279,10 @@ export const LoginPage: FC<{
           }
           input:focus { border-color: rgba(53,37,205,0.55); box-shadow: 0 0 0 4px rgba(53,37,205,0.12); }
           .actions { margin-top: 1.25rem; }
-          .actions > button[type="submit"] {
+          .actions button,
+          .actions input[type=submit] {
             width: 100%;
+            display: block;
             border: none;
             cursor: pointer;
             padding: 0.9rem 1rem;
@@ -290,8 +292,14 @@ export const LoginPage: FC<{
             color: #fff;
             background: linear-gradient(90deg, #3525cd, #4f46e5);
             box-shadow: 0 18px 34px rgba(53,37,205,0.22);
+            appearance: none;
+            -webkit-appearance: none;
+            transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease;
           }
-          .actions > button[type="submit"]:active { transform: scale(0.99); }
+          .actions button:hover,
+          .actions input[type=submit]:hover { filter: brightness(1.03); box-shadow: 0 20px 40px rgba(53,37,205,0.26); }
+          .actions button:active,
+          .actions input[type=submit]:active { transform: scale(0.99); }
           .toastClose { width: auto !important; min-width: 0 !important; box-shadow: none !important; }
           .hint {
             margin-top: 0.9rem;

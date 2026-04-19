@@ -22,6 +22,7 @@ type WaSessionRow = {
   sessionId: string;
   createdAt: string;
   userId?: string;
+  webhookUrl?: string | null;
 };
 
 export const DashboardPage: FC<
@@ -386,6 +387,7 @@ export const SessionsPage: FC<
           <thead>
             <tr>
               <th>Session ID</th>
+              <th>Webhook</th>
               <th>Runtime</th>
               <th>Dibuat</th>
               <th>Aksi</th>
@@ -395,6 +397,11 @@ export const SessionsPage: FC<
             {props.waSessions.map((s) => (
               <tr>
                 <td>{s.sessionId}</td>
+                <td class="muted">
+                  <div style="max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    {s.webhookUrl ? s.webhookUrl : "(default)"}
+                  </div>
+                </td>
                 <td class="muted">
                   {props.runtimeSessionIds.includes(s.sessionId) ? "active" : "inactive"}
                 </td>
@@ -407,6 +414,14 @@ export const SessionsPage: FC<
                       data-session-id={s.sessionId}
                     >
                       Scan QR
+                    </button>
+                    <button
+                      class="btn js-open-webhook"
+                      type="button"
+                      data-session-id={s.sessionId}
+                      data-webhook-url={s.webhookUrl ?? ""}
+                    >
+                      Webhook
                     </button>
                     <a class="btn" href={`/admin/message?sessionId=${encodeURIComponent(s.sessionId)}`}>
                       Message
@@ -457,6 +472,46 @@ export const SessionsPage: FC<
             Tutup
           </button>
         </div>
+      </div>
+    </div>
+
+    <div id="webhookModal" class="modalBackdrop" role="dialog" aria-modal="true">
+      <div class="modalCard">
+        <div class="modalHead">
+          <div class="modalTitle" id="webhookModalTitle">
+            Webhook
+          </div>
+          <button class="modalClose" type="button" id="webhookModalClose">
+            x
+          </button>
+        </div>
+        <form method="post" action="/admin/sessions/webhook" id="webhookForm">
+          <input type="hidden" name="sessionId" id="webhookSessionId" />
+          <div class="formRow">
+            <div class="label">Webhook URL</div>
+            <input
+              class="input"
+              id="webhookUrlInput"
+              name="webhookUrl"
+              type="url"
+              placeholder="https://example.com/webhook"
+            />
+          </div>
+          <div class="muted" style="margin-top: 10px; font-size: 12px; line-height: 1.5;">
+            Kosongkan untuk menonaktifkan webhook untuk device ini (atau pakai default server jika tersedia).
+          </div>
+          <div class="btnRow" style="margin-top: 12px;">
+            <button class="btn primary" type="submit">
+              Simpan
+            </button>
+            <button class="btn" type="submit" name="clear" value="1">
+              Reset
+            </button>
+            <button class="btn" type="button" id="webhookModalCloseBottom">
+              Tutup
+            </button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -560,6 +615,49 @@ export const SessionsPage: FC<
 
   const autoSession = ${JSON.stringify(props.openQrSessionId ?? "")};
   if (autoSession) openModal(autoSession);
+})();
+        `,
+      }}
+    />
+
+    <script
+      dangerouslySetInnerHTML={{
+        __html: `
+(() => {
+  const modal = document.getElementById("webhookModal");
+  const title = document.getElementById("webhookModalTitle");
+  const closeTop = document.getElementById("webhookModalClose");
+  const closeBottom = document.getElementById("webhookModalCloseBottom");
+  const openButtons = document.querySelectorAll(".js-open-webhook");
+  const sessionIdInput = document.getElementById("webhookSessionId");
+  const urlInput = document.getElementById("webhookUrlInput");
+
+  const closeModal = () => {
+    modal.classList.remove("show");
+  };
+
+  const openModal = (sessionId, webhookUrl) => {
+    if (!sessionId) return;
+    title.textContent = "Webhook - " + sessionId;
+    sessionIdInput.value = sessionId;
+    urlInput.value = webhookUrl || "";
+    modal.classList.add("show");
+    urlInput.focus();
+  };
+
+  openButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const sessionId = btn.getAttribute("data-session-id") || "";
+      const webhookUrl = btn.getAttribute("data-webhook-url") || "";
+      openModal(sessionId, webhookUrl);
+    });
+  });
+
+  closeTop.addEventListener("click", closeModal);
+  closeBottom.addEventListener("click", closeModal);
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeModal();
+  });
 })();
         `,
       }}

@@ -1,6 +1,6 @@
 # Guide for IDE / AI (HonoWA)
 
-Dokumen ini berisi panduan singkat untuk melanjutkan pengembangan HonoWA memakai IDE (VS Code/Trae) dan/atau AI assistant.
+Dokumen ini berisi panduan singkat untuk melanjutkan pengembangan HonoWA memakai IDE (VS Code/Trae/Antigravity) dan/atau AI assistant.
 
 ## Cara Menjalankan
 
@@ -20,6 +20,7 @@ npm run dev
   - `src/backend/auth.ts` — auth, user CRUD, settings helpers (Postgres)
   - `src/backend/db.ts` — koneksi PG + schema bootstrap (`ensureSchema`)
   - `src/backend/session-manager.ts` — runtime WA sessions (Map), QR/ready status
+  - `src/backend/webhook.ts` — pengiriman webhook (resolve URL per-session dari DB, fallback `WEBHOOK_URL`)
 - Frontend (Hono/JSX):
   - `src/frontend/pages/auth/login.tsx` — halaman login (meta + favicon)
   - `src/frontend/pages/admin/ui.tsx` — layout admin + CSS + navbar dropdown account
@@ -60,6 +61,13 @@ npm run dev
   - update type `User` dan mapping `toUser()` di `src/backend/auth.ts`
   - update query SELECT yang sebelumnya tidak mengambil kolom baru
 
+### 4) Webhook per device/session
+
+- Webhook default tetap bisa dikonfigurasi dari env: `WEBHOOK_URL` (+ opsional `WEBHOOK_SECRET`).
+- Setiap session/device bisa punya webhook sendiri di DB: kolom `wa_sessions.webhook_url` (ditambahkan via `ensureSchema()` dengan `alter table ... add column if not exists ...`).
+- UI pengaturan webhook ada di `GET /admin/sessions` (tombol **Webhook** per session).
+- Persist webhook via endpoint `POST /admin/sessions/webhook` (validasi session milik user, validasi URL http/https, simpan ke DB).
+
 ## Upload File (Logo / Foto Profil)
 
 - Parsing form memakai `c.req.parseBody()` di Hono (menerima file).
@@ -78,4 +86,3 @@ npm run dev
 - Port bentrok: cek proses lain di 3000.
 - QR tidak muncul: cek status session di halaman Sessions dan cek log server.
 - Upload tidak muncul: pastikan file ada di `public/assets/uploads` dan URL diawali `/assets/uploads/`.
-
