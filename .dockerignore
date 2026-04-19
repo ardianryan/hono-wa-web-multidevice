@@ -1,6 +1,12 @@
 #dependency
 node_modules
 
+# build
+dist
+
+# design templates
+.stitch_whatsapp_api_dashboard
+
 #environment
 .env
 .env.production

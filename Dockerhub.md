@@ -1,6 +1,6 @@
-# 📱 WhatsApp Multi-Session API
+# HonoWA — Hono.js + Unofficial WhatsApp API
 
-REST API untuk mengelola sesi WhatsApp secara paralel menggunakan **whatsapp-web.js**, **Hono**, dan **Node.js**.
+REST API + Admin Dashboard untuk mengelola sesi WhatsApp (multi-session) menggunakan **Hono.js**, **PostgreSQL**, dan **whatsapp-web.js** (unofficial).
 
 ---
 
@@ -10,12 +10,22 @@ REST API untuk mengelola sesi WhatsApp secara paralel menggunakan **whatsapp-web
 docker run -d \
   --name whatsapp-api \
   -p 3000:3000 \
+  -e PGHOST=host.docker.internal \
+  -e PGPORT=5432 \
+  -e PGDATABASE=hono_wa \
+  -e PGUSER=username \
+  -e PGPASSWORD=your_password \
+  -e DEFAULT_ADMIN_USERNAME=admin \
+  -e DEFAULT_ADMIN_PASSWORD=admin123 \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/.wwebjs_auth:/app/.wwebjs_auth \
-  username/whatsapp-api:latest
+  -v $(pwd)/.wwebjs_cache:/app/.wwebjs_cache \
+  username/hono-wa-web-multidevice:v2
 ```
 
-API siap diakses di `http://localhost:3000`
+UI siap diakses di:
+
+`http://localhost:3000/login`
 
 ---
 
@@ -25,14 +35,23 @@ API siap diakses di `http://localhost:3000`
 version: "3.8"
 services:
   whatsapp-api:
-    image: username/whatsapp-api:latest
+    image: username/hono-wa-web-multidevice:v2
     container_name: whatsapp-api
     restart: unless-stopped
     ports:
       - "3000:3000"
+    environment:
+      PGHOST: host.docker.internal
+      PGPORT: "5432"
+      PGDATABASE: hono_wa
+      PGUSER: username
+      PGPASSWORD: your_password
+      DEFAULT_ADMIN_USERNAME: admin
+      DEFAULT_ADMIN_PASSWORD: admin123
     volumes:
       - ./data:/app/data
       - ./.wwebjs_auth:/app/.wwebjs_auth
+      - ./.wwebjs_cache:/app/.wwebjs_cache
 ```
 
 ```bash
@@ -47,6 +66,7 @@ docker compose up -d
 | ------------------- | ------------------------------------------------------------ |
 | `/app/data`         | Menyimpan `session.json` (metadata sesi)                     |
 | `/app/.wwebjs_auth` | Menyimpan autentikasi WhatsApp (agar tidak perlu scan ulang) |
+| `/app/.wwebjs_cache` | Cache whatsapp-web.js                                      |
 
 > **Penting:** Mount kedua volume ini agar sesi tidak hilang saat container restart.
 
@@ -60,245 +80,98 @@ http://localhost:3000
 
 ---
 
-## 🔗 Daftar Endpoint
+## UI Admin
 
-### `GET /session/qr/:sessionId`
+- Login: `GET /login`
+- Dashboard: `GET /admin`
+- Sessions: `GET /admin/sessions` (scan QR via modal)
+- API Docs + Generate API Key: `GET /admin/api-docs`
 
-Membuka halaman HTML berisi QR Code untuk menghubungkan WhatsApp.
+## API Auth (Integrasi)
 
-```
-GET /session/qr/sesi1
-```
+Semua endpoint API integrasi membutuhkan API Key per-user.
 
-Buka di browser, scan QR dengan WhatsApp.
+Header yang didukung:
 
----
+- `X-API-Key: <API_KEY>`
+- `Authorization: Bearer <API_KEY>`
 
-### `POST /session/pair/:sessionId`
+API Key digenerate di `/admin/api-docs` dan hanya ditampilkan sekali saat generate/reset.
 
-Pairing menggunakan kode angka sebagai alternatif QR.
-
-**Request Body:**
-| Field | Tipe | Wajib | Keterangan |
-|---|---|---|---|
-| `phone` | `string` | ✅ | Nomor HP (format `08xx` atau `62xx`) |
-
-```json
-{
-  "phone": "081234567890"
-}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "sessionId": "sesi1",
-  "pairingCode": "ABCD-1234",
-  "message": "Buka WhatsApp > Perangkat Tertaut > Tautkan Perangkat, lalu masukkan kode ini."
-}
-```
-
----
-
-### `GET /session/status/:sessionId`
-
-Mengecek status sesi.
-
-```
-GET /session/status/sesi1
-```
-
-**Response:**
-
-```json
-{
-  "sessionId": "sesi1",
-  "status": "ready",
-  "exists": true,
-  "readyAt": "2024-01-01T00:00:00.000Z"
-}
-```
-
-**Nilai status:**
-| Status | Keterangan |
-|---|---|
-| `initializing` | Sedang diinisialisasi |
-| `pending_pairing` | Menunggu scan QR / pairing code |
-| `ready` | Aktif dan siap digunakan |
-| `disconnected` | Terputus |
-| `not_found` | Tidak ditemukan |
-
----
+## 🔗 Daftar Endpoint (Integrasi)
 
 ### `GET /sessions`
 
-Menampilkan semua sesi yang aktif.
+List session untuk user (berdasarkan DB) + status runtime jika sedang aktif.
 
-```json
-{
-  "total": 2,
-  "sessions": [
-    {
-      "sessionId": "sesi1",
-      "status": "ready",
-      "readyAt": "2024-01-01T00:00:00.000Z"
-    },
-    {
-      "sessionId": "sesi2",
-      "status": "initializing",
-      "readyAt": "2024-01-01T00:01:00.000Z"
-    }
-  ]
-}
-```
+### `GET /session/status/:sessionId`
 
----
+Cek status runtime 1 session.
 
 ### `POST /send/:sessionId`
 
-Kirim pesan teks ke nomor WhatsApp.
-
-**Request Body:**
-| Field | Tipe | Wajib | Keterangan |
-|---|---|---|---|
-| `phone` | `string` | ✅ | Nomor tujuan (format `08xx` atau `62xx`) |
-| `message` | `string` | ✅ | Isi pesan |
+Body JSON:
 
 ```json
-{
-  "phone": "081234567890",
-  "message": "Halo! Ini pesan otomatis."
-}
+{ "phone": "081234567890", "message": "Halo!" }
 ```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": "Pesan terkirim via sesi 'sesi1'"
-}
-```
-
----
 
 ### `POST /send-group/:sessionId`
 
-Kirim pesan ke grup WhatsApp.
-
-**Request Body:**
-| Field | Tipe | Wajib | Keterangan |
-|---|---|---|---|
-| `groupId` | `string` | ✅ | ID grup (format `120363xxxxxx@g.us`) |
-| `message` | `string` | ✅ | Isi pesan |
+Body JSON:
 
 ```json
-{
-  "groupId": "120363123456789012@g.us",
-  "message": "Halo semua anggota grup!"
-}
+{ "groupId": "120363xxxx@g.us", "message": "Halo grup!" }
 ```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": "Pesan ke grup berhasil dikirim"
-}
-```
-
----
-
-### `POST /status/:sessionId`
-
-Membuat status WhatsApp (Story).
-
-**Request Body:**
-| Field | Tipe | Wajib | Keterangan |
-|---|---|---|---|
-| `text` | `string` | ✅ (tanpa media) | Teks isi status |
-| `mediaUrl` | `string` | ❌ | URL gambar/video untuk status media |
-
-```json
-// Status teks
-{ "text": "Halo! Ini status otomatis." }
-
-// Status media
-{ "mediaUrl": "https://example.com/gambar.jpg", "text": "Caption di sini" }
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": "Status dibuat via sesi 'sesi1'"
-}
-```
-
----
-
-### `DELETE /session/:sessionId`
-
-Logout dan hapus sesi.
-
-```
-DELETE /session/sesi1
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": "Sesi 'sesi1' berhasil dihapus dan dilogout"
-}
-```
-
----
 
 ### `POST /broadcast/:sessionId`
 
-Kirim pesan ke banyak nomor sekaligus.
+Body JSON:
 
-**Request Body:**
-| Field | Tipe | Wajib | Default | Keterangan |
-|---|---|---|---|---|
-| `phones` | `string[]` | ✅ | — | Array nomor tujuan, maks 200 nomor |
-| `message` | `string` | ✅ | — | Isi pesan |
-| `delayMs` | `number` | ❌ | `2000` | Jeda (ms) antar pengiriman |
 
 ```json
-{
-  "phones": ["081234567890", "089876543210"],
-  "message": "Halo! Ini pesan broadcast.",
-  "delayMs": 3000
-}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "sessionId": "sesi1",
-  "summary": { "total": 2, "sent": 1, "failed": 1 },
-  "results": [
-    { "phone": "081234567890", "status": "sent" },
-    { "phone": "089876543210", "status": "failed", "error": "invalid number" }
+  "phones": ["0812...","0898..."],
+  "message": "Halo",
+  "delayMs": 2000
   ]
 }
+```
+### `POST /status/:sessionId`
+---
+Body JSON:
+### `POST /send/:sessionId`
+```json
+{ "text": "Halo!" }
+```
+Kirim pesan teks ke nomor WhatsApp.
+Atau status media:
+| `message` | `string` | ✅ | Isi pesan |
+
+```json
+  "mediaUrl": "https://example.com/image.jpg",
+  "text": "Caption"
+  "message": "Halo! Ini pesan otomatis."
+}
+```
+### `DELETE /session/:sessionId`
+### `POST /send-group/:sessionId`
+Logout + stop runtime + hapus record session (sesuai scope user/admin).
+Kirim pesan ke grup WhatsApp.
+## Contoh cURL
+| `message` | `string` | ✅ | Isi pesan |
+```bash
+curl -X POST "http://localhost:3000/send/sesi1" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <API_KEY_ANDA>" \
+  -d '{"phone":"081234567890","message":"Halo!"}'
+```
 ```
 
 ---
 
 ## ⚠️ Catatan Penting
-
+- Scan QR dilakukan dari UI `/admin/sessions` (QR endpoint tidak public).
+- Aksi API membutuhkan session runtime berstatus **READY**.
 - Semua endpoint (kecuali `/session/qr` dan `/session/pair`) memerlukan sesi berstatus **`ready`**.
-- Format nomor HP: `08xx` atau `62xx` — awalan `0` otomatis dikonversi ke `62`.
 - Sesi terputus akan dihapus otomatis dari memori setelah **30 detik**.
 - Broadcast dibatasi maksimal **200 nomor** per request.
-- Mount volume `/app/.wwebjs_auth` agar sesi tidak perlu scan ulang setelah container restart.

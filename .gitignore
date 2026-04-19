@@ -27,6 +27,13 @@ lerna-debug.log*
 # misc
 .DS_Store
 
+# build output
+dist/
+
+# uploads (runtime)
+public/assets/uploads/*
+!public/assets/uploads/honowa.png
+
 #whatsapp-web.js
 *.session
 .wwebjs_auth/

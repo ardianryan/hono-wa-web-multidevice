@@ -9,7 +9,6 @@ import type { SessionData, SessionRecord } from "./types.js";
 const DATA_DIR = path.resolve("data");
 const SESSION_FILE = path.join(DATA_DIR, "session.json");
 
-// ─── Baca data/session.json ───────────────────────────────────────────────────
 export const readSessionFile = (): Record<string, SessionRecord> => {
   try {
     if (!fs.existsSync(SESSION_FILE)) return {};
@@ -21,7 +20,6 @@ export const readSessionFile = (): Record<string, SessionRecord> => {
   }
 };
 
-// ─── Tulis data/session.json ──────────────────────────────────────────────────
 export const writeSessionFile = (data: Record<string, SessionRecord>) => {
   try {
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -31,14 +29,12 @@ export const writeSessionFile = (data: Record<string, SessionRecord>) => {
   }
 };
 
-// ─── Simpan satu sesi ke file ─────────────────────────────────────────────────
 export const persistSession = (sessionId: string, data: SessionData) => {
   const all = readSessionFile();
   all[sessionId] = { sessionId, status: data.status, readyAt: data.readyAt };
   writeSessionFile(all);
 };
 
-// ─── Hapus satu sesi dari file ────────────────────────────────────────────────
 export const removeSessionFromFile = (sessionId: string) => {
   const all = readSessionFile();
   delete all[sessionId];

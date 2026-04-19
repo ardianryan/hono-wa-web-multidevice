@@ -22,17 +22,14 @@ const { Client, LocalAuth } = require("whatsapp-web.js") as {
   LocalAuth: typeof import("whatsapp-web.js").LocalAuth;
 };
 
-// ─── Penyimpanan sesi runtime (in-memory) ────────────────────────────────────
 export const sessions = new Map<string, SessionData>();
 
-// ─── Helper: Format nomor HP ke format internasional ─────────────────────────
 export const formatPhone = (phone: string): string => {
   let num = phone.replace(/\D/g, "");
   if (num.startsWith("0")) num = "62" + num.substring(1);
   return num;
 };
 
-// ─── Core: Buat atau ambil sesi yang sudah ada ────────────────────────────────
 export const getOrCreateSession = (sessionId: string): SessionData => {
   if (sessions.has(sessionId)) {
     return sessions.get(sessionId)!;
@@ -61,7 +58,6 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
   sessions.set(sessionId, sessionData);
   persistSession(sessionId, sessionData);
 
-  // ── Event: QR ──────────────────────────────────────────────────────────────
   client.on("qr", (qr: string) => {
     sessionData.status = SESSION_STATUS.PENDING_PAIRING;
     sessionData.qr = qr;
@@ -70,7 +66,6 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
     webhookSessionQR(sessionId, qr);
   });
 
-  // ── Event: Ready ───────────────────────────────────────────────────────────
   client.on("ready", () => {
     sessionData.status = SESSION_STATUS.READY;
     sessionData.readyAt = new Date().toISOString();
@@ -80,7 +75,6 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
     webhookSessionReady(sessionId);
   });
 
-  // ── Event: Message ─────────────────────────────────────────────────────────
   client.on("message", async (msg: any) => {
     const isGroup = msg.from.endsWith("@g.us");
     webhookMessageReceived(sessionId, {
@@ -95,7 +89,6 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
     });
   });
 
-  // ── Event: Disconnected ────────────────────────────────────────────────────
   client.on("disconnected", (reason: string) => {
     sessionData.status = SESSION_STATUS.DISCONNECTED;
     persistSession(sessionId, sessionData);
@@ -111,7 +104,6 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
     }, 30_000);
   });
 
-  // ── Event: Auth Failure ────────────────────────────────────────────────────
   client.on("auth_failure", (msg: string) => {
     console.error(`[${sessionId}] Auth gagal:`, msg);
     sessions.delete(sessionId);
@@ -127,15 +119,12 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
   return sessionData;
 };
 
-// ─── Restore sesi dari file saat startup ─────────────────────────────────────
 export const restoreSessionsFromFile = () => {
   const saved = readSessionFile();
   const ids = Object.keys(saved);
   if (ids.length === 0) return;
 
-  console.log(
-    `[startup] Memulihkan ${ids.length} sesi dari data/session.json...`,
-  );
+  console.log(`[startup] Memulihkan ${ids.length} sesi dari data/session.json...`);
 
   for (const sessionId of ids) {
     const record = saved[sessionId];

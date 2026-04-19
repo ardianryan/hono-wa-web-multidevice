@@ -1,8 +1,23 @@
-# Menggunakan Debian Slim (Lebih stabil untuk Puppeteer/Chromium)
-FROM node:18-slim
+# ─────────────────────────────────────────────────────────────────────────────
+# Builder
+# ─────────────────────────────────────────────────────────────────────────────
+FROM node:20-slim AS builder
 
-# Install library pendukung Chromium di Debian
-# Kita gunakan apt-get, bukan apk
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Runtime
+# ─────────────────────────────────────────────────────────────────────────────
+FROM node:20-slim
+
+WORKDIR /app
+
 RUN apt-get update && apt-get install -y \
     chromium \
     libnss3 \
@@ -18,26 +33,22 @@ RUN apt-get update && apt-get install -y \
     libegl1 \
     libxshmfence1 \
     ca-certificates \
+    dumb-init \
     --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
-# Lokasi Chromium di Debian berbeda dengan Alpine
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+ENV NODE_ENV=production \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     WEBHOOK_URL=http://localhost:3040/webhook
 
-WORKDIR /app
-
 COPY package*.json ./
-RUN npm install
+RUN npm ci --omit=dev
 
-COPY . .
-RUN npm run build
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/public ./public
 
 EXPOSE 3000
 
-# Tambahkan dumb-init agar proses Chromium tidak jadi zombie
-RUN apt-get update && apt-get install -y dumb-init
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
-
 CMD ["npm", "start"]

@@ -2,20 +2,28 @@
 // views.ts — Template HTML untuk halaman QR dan status sesi
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─── Base layout card ─────────────────────────────────────────────────────────
 export const htmlPage = (body: string) => `<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.bunny.net/css?family=poppins:300,400,500,600,700,800" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --app-font: "Poppins", -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: var(--app-font) !important;
       background: #ece5dd;
       display: flex; justify-content: center; align-items: center;
       min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
     }
+    * { font-family: inherit; }
     .card {
       background: white; border-radius: 1.5rem;
       box-shadow: 0 8px 32px rgba(0,0,0,0.15);
@@ -42,29 +50,34 @@ export const htmlPage = (body: string) => `<!DOCTYPE html>
     }
   </style>
 </head>
-<body>
+<body style="font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;">
   <div class="card">${body}</div>
 </body>
 </html>`;
 
-// ─── QR Code page (dengan countdown & polling) ────────────────────────────────
-export const htmlQRPage = (
-  sessionId: string,
-  qrImageUrl: string,
-) => `<!DOCTYPE html>
+export const htmlQRPage = (sessionId: string, qrImageUrl: string) => `<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Scan QR – ${sessionId}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.bunny.net/css?family=poppins:300,400,500,600,700,800" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --app-font: "Poppins", -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: var(--app-font) !important;
       background: #ece5dd;
       display: flex; justify-content: center; align-items: center;
       min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
     }
+    * { font-family: inherit; }
     .card {
       background: white; border-radius: 1.5rem;
       box-shadow: 0 8px 32px rgba(0,0,0,0.15);
@@ -96,7 +109,7 @@ export const htmlQRPage = (
     }
   </style>
 </head>
-<body>
+<body style="font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;">
   <div class="card">
     <div class="logo">📱</div>
     <h1>Hubungkan WhatsApp</h1>

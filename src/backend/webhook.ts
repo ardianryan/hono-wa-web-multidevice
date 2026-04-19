@@ -3,13 +3,14 @@
 // URL webhook dikonfigurasi via environment variable WEBHOOK_URL
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─── TIPE PAYLOAD WEBHOOK ─────────────────────────────────────────────────────
+import { getDb } from "./db.js";
+
 export type WebhookEvent =
-  | "message.received" // Pesan masuk dari kontak/grup
-  | "message.sent" // Pesan berhasil dikirim via API
-  | "session.ready" // Sesi WhatsApp siap digunakan
-  | "session.qr" // QR code baru tersedia
-  | "session.disconnected"; // Sesi terputus
+  | "message.received"
+  | "message.sent"
+  | "session.ready"
+  | "session.qr"
+  | "session.disconnected";
 
 export type WebhookPayload = {
   event: WebhookEvent;
@@ -18,12 +19,42 @@ export type WebhookPayload = {
   data: Record<string, any>;
 };
 
-// ─── HELPER: Ambil URL webhook dari env ──────────────────────────────────────
-const getWebhookUrl = (): string | null => process.env.WEBHOOK_URL ?? null;
+const normalizeWebhookUrl = (value: string | null | undefined): string | null => {
+  const v = String(value ?? "").trim();
+  return v ? v : null;
+};
 
-// ─── CORE: Kirim payload ke URL webhook ──────────────────────────────────────
+type WebhookCacheEntry = { url: string | null; expiresAt: number };
+const webhookUrlCache = new Map<string, WebhookCacheEntry>();
+
+export const invalidateWebhookCache = (sessionId: string) => {
+  webhookUrlCache.delete(sessionId);
+};
+
+const getWebhookUrlForSession = async (sessionId: string): Promise<string | null> => {
+  const now = Date.now();
+  const cached = webhookUrlCache.get(sessionId);
+  if (cached && cached.expiresAt > now) return cached.url;
+
+  const fallback = normalizeWebhookUrl(process.env.WEBHOOK_URL);
+
+  try {
+    const db = getDb();
+    const res = await db.query<{ webhook_url: string | null }>(
+      `select webhook_url from wa_sessions where session_id = $1 limit 1`,
+      [sessionId],
+    );
+    const url = normalizeWebhookUrl(res.rows[0]?.webhook_url) ?? fallback;
+    webhookUrlCache.set(sessionId, { url, expiresAt: now + 30_000 });
+    return url;
+  } catch {
+    webhookUrlCache.set(sessionId, { url: fallback, expiresAt: now + 10_000 });
+    return fallback;
+  }
+};
+
 export const sendWebhook = async (payload: WebhookPayload): Promise<void> => {
-  const url = getWebhookUrl();
+  const url = await getWebhookUrlForSession(payload.sessionId);
   if (!url) return;
 
   try {
@@ -57,9 +88,6 @@ export const sendWebhook = async (payload: WebhookPayload): Promise<void> => {
   }
 };
 
-// ─── SHORTCUT: Helper per jenis event ────────────────────────────────────────
-
-/** Pesan masuk dari WhatsApp */
 export const webhookMessageReceived = (
   sessionId: string,
   msg: {
@@ -80,7 +108,6 @@ export const webhookMessageReceived = (
     data: msg,
   });
 
-/** Sesi WhatsApp siap */
 export const webhookSessionReady = (sessionId: string) =>
   sendWebhook({
     event: "session.ready",
@@ -89,7 +116,6 @@ export const webhookSessionReady = (sessionId: string) =>
     data: { status: "ready" },
   });
 
-/** QR code baru tersedia */
 export const webhookSessionQR = (sessionId: string, qr: string) =>
   sendWebhook({
     event: "session.qr",
@@ -98,7 +124,6 @@ export const webhookSessionQR = (sessionId: string, qr: string) =>
     data: { qr },
   });
 
-/** Sesi terputus */
 export const webhookSessionDisconnected = (sessionId: string, reason: string) =>
   sendWebhook({
     event: "session.disconnected",
