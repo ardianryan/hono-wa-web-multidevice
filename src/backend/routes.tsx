@@ -29,6 +29,7 @@ import { removeSessionFromFile } from "./session-store.js";
 import { SESSION_STATUS, type BroadcastResult } from "./types.js";
 import {
   createAuthSession,
+  createActionLog,
   createUser,
   createWaSessionForUser,
   deleteAuthSession,
@@ -42,6 +43,7 @@ import {
   getUserByApiKey,
   getUserBySessionId,
   getUserByUsername,
+  listActionLogs,
   listUsers,
   listWaSessionsAll,
   listWaSessionsForUser,
@@ -997,6 +999,12 @@ router.get("/admin/message", requireAuth, async (c) => {
   const waSessions =
     user.role === "admin" ? await listWaSessionsAll() : await listWaSessionsForUser(user.id);
   const selectedSessionId = c.req.query("sessionId") ?? undefined;
+  const history = await listActionLogs({
+    authUser: user,
+    actionType: "message",
+    sessionId: selectedSessionId,
+    limit: 25,
+  });
   return c.html(
     <MessagePage
       appName={appName}
@@ -1006,6 +1014,7 @@ router.get("/admin/message", requireAuth, async (c) => {
       avatarUrl={avatarUrl}
       waSessions={waSessions as any}
       selectedSessionId={selectedSessionId}
+      history={history as any}
     />,
   );
 });
@@ -1043,6 +1052,22 @@ router.post("/admin/message/send", requireAuth, async (c) => {
   try {
     const sessionData = sessions.get(sessionId) ?? getOrCreateSession(sessionId);
     if (sessionData.status !== SESSION_STATUS.READY) {
+      try {
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "message",
+          payload: { phone, message },
+          success: false,
+          error: `not_ready:${sessionData.status}`,
+        });
+      } catch {}
+      const history = await listActionLogs({
+        authUser: user,
+        actionType: "message",
+        sessionId,
+        limit: 25,
+      });
       return c.html(
         <MessagePage
           appName={appName}
@@ -1052,6 +1077,7 @@ router.post("/admin/message/send", requireAuth, async (c) => {
           avatarUrl={avatarUrl}
           waSessions={waSessions as any}
           selectedSessionId={sessionId}
+          history={history as any}
           alert={`Sesi belum siap. Status: ${sessionData.status}`}
         />,
         400,
@@ -1059,6 +1085,15 @@ router.post("/admin/message/send", requireAuth, async (c) => {
     }
     const chatId = `${formatPhone(phone)}@c.us`;
     await sessionData.client.sendMessage(chatId, message);
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "message",
+        payload: { phone, message },
+        success: true,
+      });
+    } catch {}
     return c.redirect(
       withToast(
         `/admin/message?sessionId=${encodeURIComponent(sessionId)}`,
@@ -1067,6 +1102,22 @@ router.post("/admin/message/send", requireAuth, async (c) => {
       ),
     );
   } catch (err: any) {
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "message",
+        payload: { phone, message },
+        success: false,
+        error: err?.message ?? String(err),
+      });
+    } catch {}
+    const history = await listActionLogs({
+      authUser: user,
+      actionType: "message",
+      sessionId,
+      limit: 25,
+    });
     return c.html(
       <MessagePage
         appName={appName}
@@ -1076,6 +1127,7 @@ router.post("/admin/message/send", requireAuth, async (c) => {
         avatarUrl={avatarUrl}
         waSessions={waSessions as any}
         selectedSessionId={sessionId}
+        history={history as any}
         alert={err?.message ?? "Gagal mengirim pesan"}
       />,
       500,
@@ -1090,6 +1142,12 @@ router.get("/admin/broadcast", requireAuth, async (c) => {
   const waSessions =
     user.role === "admin" ? await listWaSessionsAll() : await listWaSessionsForUser(user.id);
   const selectedSessionId = c.req.query("sessionId") ?? undefined;
+  const history = await listActionLogs({
+    authUser: user,
+    actionType: "broadcast",
+    sessionId: selectedSessionId,
+    limit: 25,
+  });
   return c.html(
     <BroadcastPage
       appName={appName}
@@ -1099,6 +1157,7 @@ router.get("/admin/broadcast", requireAuth, async (c) => {
       avatarUrl={avatarUrl}
       waSessions={waSessions as any}
       selectedSessionId={selectedSessionId}
+      history={history as any}
     />,
   );
 });
@@ -1142,6 +1201,22 @@ router.post("/admin/broadcast/send", requireAuth, async (c) => {
   try {
     const sessionData = sessions.get(sessionId) ?? getOrCreateSession(sessionId);
     if (sessionData.status !== SESSION_STATUS.READY) {
+      try {
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "broadcast",
+          payload: { phones, message, delayMs },
+          success: false,
+          error: `not_ready:${sessionData.status}`,
+        });
+      } catch {}
+      const history = await listActionLogs({
+        authUser: user,
+        actionType: "broadcast",
+        sessionId,
+        limit: 25,
+      });
       return c.html(
         <BroadcastPage
           appName={appName}
@@ -1151,6 +1226,7 @@ router.post("/admin/broadcast/send", requireAuth, async (c) => {
           avatarUrl={avatarUrl}
           waSessions={waSessions as any}
           selectedSessionId={sessionId}
+          history={history as any}
           alert={`Sesi belum siap. Status: ${sessionData.status}`}
         />,
         400,
@@ -1167,6 +1243,15 @@ router.post("/admin/broadcast/send", requireAuth, async (c) => {
       }
     }
 
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "broadcast",
+        payload: { phones, message, delayMs },
+        success: true,
+      });
+    } catch {}
     return c.redirect(
       withToast(
         `/admin/broadcast?sessionId=${encodeURIComponent(sessionId)}`,
@@ -1175,6 +1260,22 @@ router.post("/admin/broadcast/send", requireAuth, async (c) => {
       ),
     );
   } catch (err: any) {
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "broadcast",
+        payload: { phones, message, delayMs },
+        success: false,
+        error: err?.message ?? String(err),
+      });
+    } catch {}
+    const history = await listActionLogs({
+      authUser: user,
+      actionType: "broadcast",
+      sessionId,
+      limit: 25,
+    });
     return c.html(
       <BroadcastPage
         appName={appName}
@@ -1184,6 +1285,7 @@ router.post("/admin/broadcast/send", requireAuth, async (c) => {
         avatarUrl={avatarUrl}
         waSessions={waSessions as any}
         selectedSessionId={sessionId}
+        history={history as any}
         alert={err?.message ?? "Gagal broadcast"}
       />,
       500,
@@ -1198,6 +1300,12 @@ router.get("/admin/status", requireAuth, async (c) => {
   const waSessions =
     user.role === "admin" ? await listWaSessionsAll() : await listWaSessionsForUser(user.id);
   const selectedSessionId = c.req.query("sessionId") ?? undefined;
+  const history = await listActionLogs({
+    authUser: user,
+    actionType: "status",
+    sessionId: selectedSessionId,
+    limit: 25,
+  });
   return c.html(
     <StatusPage
       appName={appName}
@@ -1207,6 +1315,7 @@ router.get("/admin/status", requireAuth, async (c) => {
       avatarUrl={avatarUrl}
       waSessions={waSessions as any}
       selectedSessionId={selectedSessionId}
+      history={history as any}
     />,
   );
 });
@@ -1244,6 +1353,22 @@ router.post("/admin/status/create", requireAuth, async (c) => {
   try {
     const sessionData = sessions.get(sessionId) ?? getOrCreateSession(sessionId);
     if (sessionData.status !== SESSION_STATUS.READY) {
+      try {
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "status",
+          payload: { text, mediaUrl: mediaUrl || null },
+          success: false,
+          error: `not_ready:${sessionData.status}`,
+        });
+      } catch {}
+      const history = await listActionLogs({
+        authUser: user,
+        actionType: "status",
+        sessionId,
+        limit: 25,
+      });
       return c.html(
         <StatusPage
           appName={appName}
@@ -1253,6 +1378,7 @@ router.post("/admin/status/create", requireAuth, async (c) => {
           avatarUrl={avatarUrl}
           waSessions={waSessions as any}
           selectedSessionId={sessionId}
+          history={history as any}
           alert={`Sesi belum siap. Status: ${sessionData.status}`}
         />,
         400,
@@ -1266,6 +1392,22 @@ router.post("/admin/status/create", requireAuth, async (c) => {
       });
     } else {
       if (!text) {
+        try {
+          await createActionLog({
+            userId: user.id,
+            sessionId,
+            actionType: "status",
+            payload: { text, mediaUrl: null },
+            success: false,
+            error: "missing_text",
+          });
+        } catch {}
+        const history = await listActionLogs({
+          authUser: user,
+          actionType: "status",
+          sessionId,
+          limit: 25,
+        });
         return c.html(
           <StatusPage
             appName={appName}
@@ -1275,6 +1417,7 @@ router.post("/admin/status/create", requireAuth, async (c) => {
             avatarUrl={avatarUrl}
             waSessions={waSessions as any}
             selectedSessionId={sessionId}
+            history={history as any}
             alert='Field "text" wajib diisi jika tanpa media'
           />,
           400,
@@ -1283,6 +1426,15 @@ router.post("/admin/status/create", requireAuth, async (c) => {
       await sessionData.client.sendMessage("status@broadcast", text);
     }
 
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "status",
+        payload: { text, mediaUrl: mediaUrl || null },
+        success: true,
+      });
+    } catch {}
     return c.redirect(
       withToast(
         `/admin/status?sessionId=${encodeURIComponent(sessionId)}`,
@@ -1291,6 +1443,22 @@ router.post("/admin/status/create", requireAuth, async (c) => {
       ),
     );
   } catch (err: any) {
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "status",
+        payload: { text, mediaUrl: mediaUrl || null },
+        success: false,
+        error: err?.message ?? String(err),
+      });
+    } catch {}
+    const history = await listActionLogs({
+      authUser: user,
+      actionType: "status",
+      sessionId,
+      limit: 25,
+    });
     return c.html(
       <StatusPage
         appName={appName}
@@ -1300,6 +1468,7 @@ router.post("/admin/status/create", requireAuth, async (c) => {
         avatarUrl={avatarUrl}
         waSessions={waSessions as any}
         selectedSessionId={sessionId}
+        history={history as any}
         alert={err?.message ?? "Gagal buat status"}
       />,
       500,
@@ -1467,6 +1636,16 @@ router.post("/send/:sessionId", requireApiKey, async (c) => {
     }
 
     if (sessionData.status !== SESSION_STATUS.READY) {
+      try {
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "message",
+          payload: { phone: null, message: null },
+          success: false,
+          error: `not_ready:${sessionData.status}`,
+        });
+      } catch {}
       return c.json(
         { error: `Sesi belum siap. Status: ${sessionData.status}` },
         400,
@@ -1477,17 +1656,49 @@ router.post("/send/:sessionId", requireApiKey, async (c) => {
     const { phone, message } = body;
 
     if (!phone || !message) {
+      try {
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "message",
+          payload: { phone: phone ?? null, message: message ?? null },
+          success: false,
+          error: "missing_fields",
+        });
+      } catch {}
       return c.json({ error: 'Field "phone" dan "message" wajib diisi' }, 400);
     }
 
     const chatId = `${formatPhone(phone)}@c.us`;
     await sessionData.client.sendMessage(chatId, message);
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "message",
+        payload: { phone, message },
+        success: true,
+      });
+    } catch {}
 
     return c.json({
       success: true,
       message: `Pesan terkirim via sesi '${sessionId}'`,
     });
   } catch (error: any) {
+    try {
+      const sessionId = c.req.param("sessionId");
+      const body = await c.req.json().catch(() => ({}));
+      const user = c.get("authUser");
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "message",
+        payload: { phone: (body as any).phone ?? null, message: (body as any).message ?? null },
+        success: false,
+        error: error?.message ?? String(error),
+      });
+    } catch {}
     return c.json(
       { error: "Gagal mengirim pesan", details: error.toString() },
       500,
@@ -1514,6 +1725,16 @@ router.post("/send-group/:sessionId", requireApiKey, async (c) => {
     }
 
     if (sessionData.status !== SESSION_STATUS.READY) {
+      try {
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "message",
+          payload: { groupId: null, message: null },
+          success: false,
+          error: `not_ready:${sessionData.status}`,
+        });
+      } catch {}
       return c.json(
         { error: `Sesi belum siap. Status: ${sessionData.status}` },
         400,
@@ -1524,12 +1745,44 @@ router.post("/send-group/:sessionId", requireApiKey, async (c) => {
     const { groupId, message } = body;
 
     if (!groupId || !message) {
+      try {
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "message",
+          payload: { groupId: groupId ?? null, message: message ?? null },
+          success: false,
+          error: "missing_fields",
+        });
+      } catch {}
       return c.json({ error: 'Field "groupId" dan "message" wajib diisi' }, 400);
     }
 
     await sessionData.client.sendMessage(groupId, message);
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "message",
+        payload: { groupId, message },
+        success: true,
+      });
+    } catch {}
     return c.json({ success: true, message: "Pesan ke grup berhasil dikirim" });
   } catch (error: any) {
+    try {
+      const sessionId = c.req.param("sessionId");
+      const body = await c.req.json().catch(() => ({}));
+      const user = c.get("authUser");
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "message",
+        payload: { groupId: (body as any).groupId ?? null, message: (body as any).message ?? null },
+        success: false,
+        error: error?.message ?? String(error),
+      });
+    } catch {}
     return c.json(
       { error: "Gagal kirim ke grup", details: error.toString() },
       500,
@@ -1556,6 +1809,16 @@ router.post("/status/:sessionId", requireApiKey, async (c) => {
     }
 
     if (sessionData.status !== SESSION_STATUS.READY) {
+      try {
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "status",
+          payload: { text: null, mediaUrl: null },
+          success: false,
+          error: `not_ready:${sessionData.status}`,
+        });
+      } catch {}
       return c.json(
         { error: `Sesi belum siap. Status: ${sessionData.status}` },
         400,
@@ -1572,16 +1835,48 @@ router.post("/status/:sessionId", requireApiKey, async (c) => {
       });
     } else {
       if (!text) {
+        try {
+          await createActionLog({
+            userId: user.id,
+            sessionId,
+            actionType: "status",
+            payload: { text: null, mediaUrl: null },
+            success: false,
+            error: "missing_text",
+          });
+        } catch {}
         return c.json({ error: 'Field "text" wajib diisi jika tanpa media' }, 400);
       }
       await sessionData.client.sendMessage("status@broadcast", text);
     }
 
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "status",
+        payload: { text: text ?? null, mediaUrl: mediaUrl ?? null },
+        success: true,
+      });
+    } catch {}
     return c.json({
       success: true,
       message: `Status dibuat via sesi '${sessionId}'`,
     });
   } catch (error: any) {
+    try {
+      const sessionId = c.req.param("sessionId");
+      const body = await c.req.json().catch(() => ({}));
+      const user = c.get("authUser");
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "status",
+        payload: { text: (body as any).text ?? null, mediaUrl: (body as any).mediaUrl ?? null },
+        success: false,
+        error: error?.message ?? String(error),
+      });
+    } catch {}
     return c.json(
       { error: "Gagal buat status", details: error.toString() },
       500,
@@ -1650,6 +1945,16 @@ router.post("/broadcast/:sessionId", requireApiKey, async (c) => {
   }
 
   if (sessionData.status !== SESSION_STATUS.READY) {
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "broadcast",
+        payload: { phones: [], message: null, delayMs: null },
+        success: false,
+        error: `not_ready:${sessionData.status}`,
+      });
+    } catch {}
     return c.json(
       { error: `Sesi belum siap. Status saat ini: ${sessionData.status}` },
       400,
@@ -1668,15 +1973,45 @@ router.post("/broadcast/:sessionId", requireApiKey, async (c) => {
   const delayMs: number = typeof body.delayMs === "number" ? body.delayMs : 2000;
 
   if (!Array.isArray(phones) || phones.length === 0) {
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "broadcast",
+        payload: { phones: Array.isArray(phones) ? phones : [], message: message ?? null, delayMs },
+        success: false,
+        error: "missing_phones",
+      });
+    } catch {}
     return c.json(
       { error: 'Field "phones" wajib berupa array dan tidak boleh kosong' },
       400,
     );
   }
   if (!message) {
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "broadcast",
+        payload: { phones, message: null, delayMs },
+        success: false,
+        error: "missing_message",
+      });
+    } catch {}
     return c.json({ error: 'Field "message" wajib diisi' }, 400);
   }
   if (phones.length > 200) {
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "broadcast",
+        payload: { phones, message, delayMs },
+        success: false,
+        error: "too_many_phones",
+      });
+    } catch {}
     return c.json({ error: "Maksimal 200 nomor per request broadcast" }, 400);
   }
 
@@ -1713,10 +2048,22 @@ router.post("/broadcast/:sessionId", requireApiKey, async (c) => {
     }
   }
 
-  return c.json({
+  const response = {
     success: true,
     sessionId,
     summary: { total: phones.length, sent: successCount, failed: failCount },
     results,
-  });
+  };
+
+  try {
+    await createActionLog({
+      userId: user.id,
+      sessionId,
+      actionType: "broadcast",
+      payload: { phones, message, delayMs, summary: response.summary },
+      success: true,
+    });
+  } catch {}
+
+  return c.json(response);
 });

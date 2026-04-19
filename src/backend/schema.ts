@@ -1,5 +1,6 @@
 import {
   index,
+  jsonb,
   pgTable,
   text,
   integer,
@@ -69,3 +70,27 @@ export const waSessions = pgTable("wa_sessions", {
     .notNull()
     .defaultNow(),
 });
+
+export const actionLogs = pgTable(
+  "action_logs",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    sessionId: text("session_id").notNull(),
+    actionType: text("action_type").notNull(),
+    payload: jsonb("payload").notNull(),
+    success: integer("success").notNull().default(1),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    userIdIndex: index("action_logs_user_id_idx").on(table.userId),
+    sessionIdIndex: index("action_logs_session_id_idx").on(table.sessionId),
+    actionTypeIndex: index("action_logs_action_type_idx").on(table.actionType),
+    createdAtIndex: index("action_logs_created_at_idx").on(table.createdAt),
+  }),
+);

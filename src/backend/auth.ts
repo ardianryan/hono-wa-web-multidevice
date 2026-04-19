@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { db, getSetting, setSetting } from "./db.js";
 import { and, desc, eq, gt } from "drizzle-orm";
-import { authSessions, users, waSessions } from "./schema.js";
+import { actionLogs, authSessions, users, waSessions } from "./schema.js";
 
 export type Role = "admin" | "user";
 
@@ -340,4 +340,68 @@ export const createWaSessionForUser = async (
     userId,
     sessionId,
   });
+};
+
+export type ActionType = "message" | "broadcast" | "status";
+
+export type ActionLog = {
+  id: string;
+  userId: string;
+  sessionId: string;
+  actionType: ActionType;
+  payload: any;
+  success: boolean;
+  error?: string | null;
+  createdAt: string;
+};
+
+export const createActionLog = async (input: {
+  userId: string;
+  sessionId: string;
+  actionType: ActionType;
+  payload: Record<string, any>;
+  success: boolean;
+  error?: string | null;
+}) => {
+  const id = crypto.randomUUID();
+  await db.insert(actionLogs).values({
+    id,
+    userId: input.userId,
+    sessionId: input.sessionId,
+    actionType: input.actionType,
+    payload: input.payload,
+    success: input.success ? 1 : 0,
+    error: input.error ?? null,
+  });
+};
+
+export const listActionLogs = async (input: {
+  authUser: User;
+  actionType: ActionType;
+  sessionId?: string;
+  limit?: number;
+}): Promise<ActionLog[]> => {
+  const limit = input.limit ?? 20;
+  const clauses: any[] = [eq(actionLogs.actionType, input.actionType)];
+  if (input.sessionId) clauses.push(eq(actionLogs.sessionId, input.sessionId));
+  if (input.authUser.role !== "admin") clauses.push(eq(actionLogs.userId, input.authUser.id));
+  const where = and(...clauses);
+
+  const rows = await db
+    .select()
+    .from(actionLogs)
+    .where(where)
+    .orderBy(desc(actionLogs.createdAt))
+    .limit(limit);
+
+  return rows.map((r) => ({
+    id: r.id,
+    userId: r.userId,
+    sessionId: r.sessionId,
+    actionType: (r.actionType as ActionType) ?? input.actionType,
+    payload: r.payload,
+    success: Boolean(r.success),
+    error: r.error ?? null,
+    createdAt: r.createdAt.toISOString(),
+  }));
 };

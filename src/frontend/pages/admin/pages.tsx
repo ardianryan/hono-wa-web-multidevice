@@ -25,6 +25,15 @@ type WaSessionRow = {
   webhookUrl?: string | null;
 };
 
+type ActionLogRow = {
+  id: string;
+  sessionId: string;
+  createdAt: string;
+  success: boolean;
+  payload: any;
+  error?: string | null;
+};
+
 export const DashboardPage: FC<
   LayoutBase & {
   role: "admin" | "user";
@@ -501,7 +510,7 @@ export const SessionsPage: FC<
             />
           </div>
           <div class="muted" style="margin-top: 10px; font-size: 12px; line-height: 1.5;">
-            Kosongkan untuk menonaktifkan webhook untuk device ini (atau pakai default server jika tersedia).
+            Isi URL webhook (contoh: n8n, Make, Zapier, custom endpoint) untuk menerima event dari device ini. Kosongkan untuk menonaktifkan webhook untuk device ini (atau pakai default server jika tersedia).
           </div>
           <div class="btnRow" style="margin-top: 12px;">
             <button class="btn primary" type="submit">
@@ -688,6 +697,7 @@ export const MessagePage: FC<
     waSessions: WaSessionRow[];
     selectedSessionId?: string;
     alert?: string;
+    history?: ActionLogRow[];
   }
 > = (props) => (
   <AdminLayout
@@ -722,6 +732,40 @@ export const MessagePage: FC<
           </div>
         </form>
       </div>
+      <div class="card" style="grid-column: span 12;">
+        <div class="statLabel">History Message</div>
+        <div class="muted" style="margin-top: 8px; font-size: 13px;">
+          Menampilkan {String((props.history ?? []).length)} data terbaru.
+        </div>
+        <table class="table" style="margin-top: 12px;">
+          <thead>
+            <tr>
+              <th>Waktu</th>
+              <th>Session</th>
+              <th>Target</th>
+              <th>Ringkas</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(props.history ?? []).map((h) => (
+              <tr>
+                <td class="muted">{new Date(h.createdAt).toLocaleString()}</td>
+                <td>{h.sessionId}</td>
+                <td class="muted">{h.payload?.phone ?? h.payload?.groupId ?? "-"}</td>
+                <td class="muted">
+                  <div style="max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    {String(h.payload?.message ?? "-")}
+                  </div>
+                </td>
+                <td class="muted">
+                  {h.success ? "sent" : `failed${h.error ? `: ${h.error}` : ""}`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   </AdminLayout>
 );
@@ -731,6 +775,7 @@ export const BroadcastPage: FC<
     waSessions: WaSessionRow[];
     selectedSessionId?: string;
     alert?: string;
+    history?: ActionLogRow[];
   }
 > = (props) => (
   <AdminLayout
@@ -772,6 +817,42 @@ export const BroadcastPage: FC<
           </div>
         </form>
       </div>
+      <div class="card" style="grid-column: span 12;">
+        <div class="statLabel">History Broadcast</div>
+        <div class="muted" style="margin-top: 8px; font-size: 13px;">
+          Menampilkan {String((props.history ?? []).length)} data terbaru.
+        </div>
+        <table class="table" style="margin-top: 12px;">
+          <thead>
+            <tr>
+              <th>Waktu</th>
+              <th>Session</th>
+              <th>Total</th>
+              <th>Delay</th>
+              <th>Ringkas</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(props.history ?? []).map((h) => (
+              <tr>
+                <td class="muted">{new Date(h.createdAt).toLocaleString()}</td>
+                <td>{h.sessionId}</td>
+                <td class="muted">{String((h.payload?.phones ?? []).length)}</td>
+                <td class="muted">{String(h.payload?.delayMs ?? "-")}</td>
+                <td class="muted">
+                  <div style="max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    {String(h.payload?.message ?? "-")}
+                  </div>
+                </td>
+                <td class="muted">
+                  {h.success ? "sent" : `failed${h.error ? `: ${h.error}` : ""}`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   </AdminLayout>
 );
@@ -781,6 +862,7 @@ export const StatusPage: FC<
     waSessions: WaSessionRow[];
     selectedSessionId?: string;
     alert?: string;
+    history?: ActionLogRow[];
   }
 > = (props) => (
   <AdminLayout
@@ -814,6 +896,44 @@ export const StatusPage: FC<
             </button>
           </div>
         </form>
+      </div>
+      <div class="card" style="grid-column: span 12;">
+        <div class="statLabel">History Status</div>
+        <div class="muted" style="margin-top: 8px; font-size: 13px;">
+          Menampilkan {String((props.history ?? []).length)} data terbaru.
+        </div>
+        <table class="table" style="margin-top: 12px;">
+          <thead>
+            <tr>
+              <th>Waktu</th>
+              <th>Session</th>
+              <th>Media URL</th>
+              <th>Text</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(props.history ?? []).map((h) => (
+              <tr>
+                <td class="muted">{new Date(h.createdAt).toLocaleString()}</td>
+                <td>{h.sessionId}</td>
+                <td class="muted">
+                  <div style="max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    {String(h.payload?.mediaUrl ?? "-")}
+                  </div>
+                </td>
+                <td class="muted">
+                  <div style="max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    {String(h.payload?.text ?? "-")}
+                  </div>
+                </td>
+                <td class="muted">
+                  {h.success ? "sent" : `failed${h.error ? `: ${h.error}` : ""}`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   </AdminLayout>
