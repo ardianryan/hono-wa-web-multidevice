@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { db, getSetting, setSetting } from "./db.js";
-import { and, desc, eq, gt } from "drizzle-orm";
-import { authSessions, users, waSessions } from "./schema.js";
+import { and, desc, eq, gt, inArray } from "drizzle-orm";
+import { actionLogs, authSessions, users, waSessions } from "./schema.js";
 
 export type Role = "admin" | "user";
 
@@ -152,6 +152,19 @@ export const getAppLogoUrl = async (): Promise<string | null> => {
 
 export const setAppLogoUrl = async (url: string | null): Promise<void> => {
   await setSetting("app_logo_url", url ?? "");
+};
+
+export const getMediaMaxMb = async (): Promise<number> => {
+  const v = await getSetting("media_max_mb");
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return 10;
+  return Math.min(100, Math.max(1, n));
+};
+
+export const setMediaMaxMb = async (mb: number): Promise<void> => {
+  const n = Number(mb);
+  const normalized = Number.isFinite(n) ? Math.min(100, Math.max(1, Math.floor(n))) : 10;
+  await setSetting("media_max_mb", String(normalized));
 };
 
 export const getUserByUsername = async (
@@ -340,4 +353,122 @@ export const createWaSessionForUser = async (
     userId,
     sessionId,
   });
+};
+
+export type ActionType = "message" | "broadcast" | "status";
+
+export type ActionLog = {
+  id: string;
+  userId: string;
+  sessionId: string;
+  actionType: ActionType;
+  payload: any;
+  success: boolean;
+  error?: string | null;
+  createdAt: string;
+};
+
+export const createActionLog = async (input: {
+  userId: string;
+  sessionId: string;
+  actionType: ActionType;
+  payload: Record<string, any>;
+  success: boolean;
+  error?: string | null;
+}) => {
+  const id = crypto.randomUUID();
+  await db.insert(actionLogs).values({
+    id,
+    userId: input.userId,
+    sessionId: input.sessionId,
+    actionType: input.actionType,
+    payload: input.payload,
+    success: input.success ? 1 : 0,
+    error: input.error ?? null,
+  });
+};
+
+export const listActionLogs = async (input: {
+  authUser: User;
+  actionType: ActionType;
+  sessionId?: string;
+  limit?: number;
+}): Promise<ActionLog[]> => {
+  const limit = input.limit ?? 20;
+  const clauses: any[] = [eq(actionLogs.actionType, input.actionType)];
+  if (input.sessionId) clauses.push(eq(actionLogs.sessionId, input.sessionId));
+  if (input.authUser.role !== "admin") clauses.push(eq(actionLogs.userId, input.authUser.id));
+  const where = and(...clauses);
+
+  const rows = await db
+    .select()
+    .from(actionLogs)
+    .where(where)
+    .orderBy(desc(actionLogs.createdAt))
+    .limit(limit);
+
+  return rows.map((r) => ({
+    id: r.id,
+    userId: r.userId,
+    sessionId: r.sessionId,
+    actionType: (r.actionType as ActionType) ?? input.actionType,
+    payload: r.payload,
+    success: Boolean(r.success),
+    error: r.error ?? null,
+    createdAt: r.createdAt.toISOString(),
+  }));
+};
+
+export const getActionLogById = async (
+  authUser: User,
+  id: string,
+): Promise<ActionLog | null> => {
+  const clauses: any[] = [eq(actionLogs.id, id)];
+  if (authUser.role !== "admin") clauses.push(eq(actionLogs.userId, authUser.id));
+  const where = and(...clauses);
+  const rows = await db.select().from(actionLogs).where(where).limit(1);
+  const r = rows[0];
+  if (!r) return null;
+  return {
+    id: r.id,
+    userId: r.userId,
+    sessionId: r.sessionId,
+    actionType: (r.actionType as ActionType) ?? "message",
+    payload: r.payload,
+    success: Boolean(r.success),
+    error: r.error ?? null,
+    createdAt: r.createdAt.toISOString(),
+  };
+};
+
+export const deleteActionLogsByIds = async (input: {
+  authUser: User;
+  actionType: ActionType;
+  ids: string[];
+  sessionId?: string;
+}): Promise<number> => {
+  const ids = Array.from(new Set(input.ids.map((v) => String(v).trim()).filter(Boolean)));
+  if (!ids.length) return 0;
+  const clauses: any[] = [
+    eq(actionLogs.actionType, input.actionType),
+    inArray(actionLogs.id, ids),
+  ];
+  if (input.sessionId) clauses.push(eq(actionLogs.sessionId, input.sessionId));
+  if (input.authUser.role !== "admin") clauses.push(eq(actionLogs.userId, input.authUser.id));
+  const where = and(...clauses);
+  const deleted = await db.delete(actionLogs).where(where).returning({ id: actionLogs.id });
+  return deleted.length;
+};
+
+export const deleteAllActionLogs = async (input: {
+  authUser: User;
+  actionType: ActionType;
+  sessionId?: string;
+}): Promise<number> => {
+  const clauses: any[] = [eq(actionLogs.actionType, input.actionType)];
+  if (input.sessionId) clauses.push(eq(actionLogs.sessionId, input.sessionId));
+  if (input.authUser.role !== "admin") clauses.push(eq(actionLogs.userId, input.authUser.id));
+  const where = and(...clauses);
+  const deleted = await db.delete(actionLogs).where(where).returning({ id: actionLogs.id });
+  return deleted.length;
 };

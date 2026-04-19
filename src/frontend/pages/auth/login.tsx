@@ -155,6 +155,7 @@ export const LoginPage: FC<{
           @media (max-width: 860px) {
             .grid { grid-template-columns: 1fr; }
             .left { display: none; }
+            .right { border-left: none; }
           }
           .left {
             padding: 2.5rem 2.5rem;
@@ -235,14 +236,17 @@ export const LoginPage: FC<{
           }
           .right {
             padding: 2.5rem 2.25rem;
-            background: rgba(255,255,255,0.85);
+            background: transparent;
+            border-left: 1px solid rgba(199,196,216,0.35);
           }
           .card {
-            background: #fff;
-            border: 1px solid rgba(199,196,216,0.35);
-            border-radius: 1.25rem;
-            padding: 1.75rem;
-            box-shadow: 0 14px 36px rgba(17,24,39,0.08);
+            max-width: 420px;
+            margin: 0 auto;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 0;
+            box-shadow: none;
           }
           .card h2 {
             font-size: 1.2rem;

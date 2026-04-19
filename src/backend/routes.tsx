@@ -7,6 +7,7 @@ import { createRequire } from "module";
 import crypto from "crypto";
 import fs from "fs/promises";
 import path from "path";
+import { Readable } from "stream";
 import { Hono, type MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import QRCode from "qrcode";
@@ -24,24 +25,35 @@ import {
   UserFormPage,
   UsersListPage,
 } from "../frontend/pages/admin/pages.js";
-import { sessions, getOrCreateSession, formatPhone } from "./session-manager.js";
+import {
+  sessions,
+  enqueueBroadcastJob,
+  getOrCreateSession,
+  formatPhone,
+} from "./session-manager.js";
 import { removeSessionFromFile } from "./session-store.js";
 import { SESSION_STATUS, type BroadcastResult } from "./types.js";
 import {
   createAuthSession,
+  createActionLog,
   createUser,
   createWaSessionForUser,
+  deleteActionLogsByIds,
+  deleteAllActionLogs,
   deleteAuthSession,
   deleteUser,
   ensureDefaultAdmin,
+  getActionLogById,
   getAppDescription,
   getAppLogoUrl,
   getAppName,
   getMaintenanceMode,
+  getMediaMaxMb,
   getUserById,
   getUserByApiKey,
   getUserBySessionId,
   getUserByUsername,
+  listActionLogs,
   listUsers,
   listWaSessionsAll,
   listWaSessionsForUser,
@@ -50,6 +62,7 @@ import {
   setAppLogoUrl,
   setAppName,
   setMaintenanceMode,
+  setMediaMaxMb,
   type User,
   updateUser,
   updateUserEmail,
@@ -147,16 +160,20 @@ const getAvatarUrl = (user: User) => {
   return getGravatarUrl(key ?? user.username);
 };
 
+const DEFAULT_APP_LOGO_URL = "/assets/uploads/honowa.png";
+
 const getUiSettings = async () => {
   const [appName, appDescription, appLogoUrl] = await Promise.all([
     getAppName(),
     getAppDescription(),
     getAppLogoUrl(),
   ]);
+  const customLogoUrl = appLogoUrl?.trim() ? appLogoUrl : null;
   return {
     appName,
     appDescription,
-    appLogoUrl: appLogoUrl ?? undefined,
+    appLogoUrl: customLogoUrl ?? DEFAULT_APP_LOGO_URL,
+    appLogoIsDefault: !customLogoUrl,
   };
 };
 
@@ -192,6 +209,116 @@ const saveUploadedFile = async (
   return `/assets/uploads/${filename}`;
 };
 
+type LoadedMedia = {
+  mimetype: string;
+  dataB64: string;
+  filename: string;
+  size: number;
+  source: { kind: "url"; url: string } | { kind: "upload"; name: string | null };
+  isAudio: boolean;
+};
+
+const isHttpUrl = (value: string) => {
+  try {
+    const u = new URL(value);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+const filenameFromUrl = (value: string) => {
+  try {
+    const u = new URL(value);
+    const last = u.pathname.split("/").filter(Boolean).pop();
+    const raw = last ? decodeURIComponent(last) : "file";
+    const safe = raw.replace(/[\u0000-\u001f<>:"/\\|?*\u007f]/g, "_").trim();
+    return safe.length > 0 ? safe.slice(0, 120) : "file";
+  } catch {
+    return "file";
+  }
+};
+
+const loadMediaFromUrl = async (url: string, maxBytes: number): Promise<LoadedMedia> => {
+  if (!isHttpUrl(url)) throw new Error("invalid_media_url");
+  const res = await fetch(url, { redirect: "follow" as any });
+  if (!res.ok) throw new Error(`media_fetch_failed:${res.status}`);
+  const len = Number(res.headers.get("content-length") ?? "0");
+  if (Number.isFinite(len) && len > 0 && len > maxBytes) throw new Error("media_too_large");
+  const contentType = String(res.headers.get("content-type") ?? "application/octet-stream")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+  const filename = filenameFromUrl(url);
+
+  let buf: Buffer;
+  if ((Readable as any).fromWeb && res.body) {
+    const chunks: Buffer[] = [];
+    let total = 0;
+    const stream = Readable.fromWeb(res.body as any);
+    for await (const chunk of stream) {
+      const b = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += b.length;
+      if (total > maxBytes) throw new Error("media_too_large");
+      chunks.push(b);
+    }
+    buf = Buffer.concat(chunks);
+  } else {
+    buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > maxBytes) throw new Error("media_too_large");
+  }
+
+  return {
+    mimetype: contentType || "application/octet-stream",
+    dataB64: buf.toString("base64"),
+    filename,
+    size: buf.length,
+    source: { kind: "url", url },
+    isAudio: (contentType || "").startsWith("audio/"),
+  };
+};
+
+const loadMediaFromUpload = async (file: any, maxBytes: number): Promise<LoadedMedia> => {
+  if (!file || typeof file.arrayBuffer !== "function") throw new Error("missing_media_file");
+  const size = Number(file.size ?? 0);
+  if (Number.isFinite(size) && size > maxBytes) throw new Error("media_too_large");
+  const buf = Buffer.from(await file.arrayBuffer());
+  if (buf.length === 0) throw new Error("empty_media_file");
+  if (buf.length > maxBytes) throw new Error("media_too_large");
+
+  const contentType = String(file.type ?? "application/octet-stream")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+  const name = String(file.name ?? "").trim();
+  const filename = name.length > 0 ? name.slice(0, 120) : "file";
+
+  return {
+    mimetype: contentType || "application/octet-stream",
+    dataB64: buf.toString("base64"),
+    filename,
+    size: buf.length,
+    source: { kind: "upload", name: name || null },
+    isAudio: (contentType || "").startsWith("audio/"),
+  };
+};
+
+const resolveMediaInput = async (input: {
+  mediaUrl?: string;
+  mediaFile?: any;
+  maxBytes: number;
+}): Promise<LoadedMedia | null> => {
+  const url = String(input.mediaUrl ?? "").trim();
+  if (url) return await loadMediaFromUrl(url, input.maxBytes);
+  const file = input.mediaFile;
+  const hasFile =
+    file &&
+    typeof file.arrayBuffer === "function" &&
+    Number((file as any).size ?? 0) > 0;
+  if (hasFile) return await loadMediaFromUpload(file, input.maxBytes);
+  return null;
+};
+
 const withToast = (url: string, message: string, type: "success" | "error" | "info" = "info") => {
   const sep = url.includes("?") ? "&" : "?";
   return (
@@ -202,6 +329,80 @@ const withToast = (url: string, message: string, type: "success" | "error" | "in
     "&toastType=" +
     encodeURIComponent(type)
   );
+};
+
+const UNSEND_WINDOW_MS = 48 * 60 * 60 * 1000;
+const HISTORY_ACTION_TYPES = new Set(["message", "broadcast", "status"]);
+type HistoryActionType = "message" | "broadcast" | "status";
+
+const toHistoryActionType = (value: string): HistoryActionType => {
+  if (!HISTORY_ACTION_TYPES.has(value)) return "message";
+  return value as HistoryActionType;
+};
+
+const historyBasePath = (actionType: HistoryActionType) => {
+  if (actionType === "broadcast") return "/admin/broadcast";
+  if (actionType === "status") return "/admin/status";
+  return "/admin/message";
+};
+
+const historyPathWithSession = (actionType: HistoryActionType, sessionId?: string) => {
+  const base = historyBasePath(actionType);
+  const sid = String(sessionId ?? "").trim();
+  if (!sid) return base;
+  return `${base}?sessionId=${encodeURIComponent(sid)}`;
+};
+
+const collectMessageIds = (payload: any): string[] => {
+  const direct = Array.isArray(payload?.sentMessageIds) ? payload.sentMessageIds : [];
+  const nested = Array.isArray(payload?.sentItems)
+    ? payload.sentItems.flatMap((item: any) =>
+        Array.isArray(item?.messageIds) ? item.messageIds : [],
+      )
+    : [];
+  return Array.from(
+    new Set(
+      [...direct, ...nested]
+        .map((v) => String(v ?? "").trim())
+        .filter(Boolean),
+    ),
+  );
+};
+
+const isWithinUnsendWindow = (createdAtIso?: string | null) => {
+  const ts = Date.parse(String(createdAtIso ?? ""));
+  if (!Number.isFinite(ts)) return false;
+  return Date.now() - ts <= UNSEND_WINDOW_MS;
+};
+
+const unsendByMessageIds = async (sessionId: string, messageIds: string[]) => {
+  const sessionData = sessions.get(sessionId) ?? getOrCreateSession(sessionId);
+  if (sessionData.status !== SESSION_STATUS.READY) {
+    throw new Error(`not_ready:${sessionData.status}`);
+  }
+  let revoked = 0;
+  for (const id of messageIds) {
+    const msg = await sessionData.client.getMessageById(id);
+    if (!msg) continue;
+    await msg.delete(true);
+    revoked++;
+  }
+  return revoked;
+};
+
+const jsonToCsv = (rows: Record<string, any>[]) => {
+  if (!rows.length) return "id,createdAt,sessionId,target,message,status,error\r\n";
+  const headers = Object.keys(rows[0]);
+  const esc = (v: any) => {
+    const s = String(v ?? "");
+    if (/[,"\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+  const lines = [
+    headers.join(","),
+    ...rows.map((row) => headers.map((h) => esc(row[h])).join(",")),
+  ];
+  return lines.join("\r\n") + "\r\n";
 };
 
 router.get("/login", async (c) => {
@@ -536,17 +737,21 @@ router.post("/admin/users/:id/delete", requireAuth, requireAdmin, async (c) => {
 
 router.get("/admin/settings", requireAuth, requireAdmin, async (c) => {
   const user = c.get("authUser");
-  const { appName, appDescription, appLogoUrl } = await getUiSettings();
+  const { appName, appDescription, appLogoUrl, appLogoIsDefault } =
+    await getUiSettings();
   const avatarUrl = getAvatarUrl(user);
   const maintenance = await getMaintenanceMode();
+  const mediaMaxMb = await getMediaMaxMb();
   return c.html(
     <SettingsPage
       appName={appName}
       username={user.username}
       appDescription={appDescription}
       logoUrl={appLogoUrl}
+      logoIsDefault={appLogoIsDefault}
       avatarUrl={avatarUrl}
       maintenance={maintenance}
+      mediaMaxMb={mediaMaxMb}
     />,
   );
 });
@@ -557,10 +762,20 @@ router.post("/admin/settings", requireAuth, requireAdmin, async (c) => {
   const appName = String(body.appName ?? "HonoWA").trim() || "HonoWA";
   const maintenance = String(body.maintenance ?? "") === "on" || String(body.maintenance) === "true";
   const appDescription = String(body.appDescription ?? "").trim();
+  const mediaMaxMbRaw = String((body as any).mediaMaxMb ?? "").trim();
+  const mediaMaxMb = mediaMaxMbRaw ? Number(mediaMaxMbRaw) : 10;
   const logoFile = (body as any).logo;
 
-  const logoUrl = await saveUploadedFile(logoFile, "app-logo");
-  if (logoFile && !logoUrl) {
+  const hasLogoUpload =
+    logoFile &&
+    typeof logoFile.arrayBuffer === "function" &&
+    Number((logoFile as any).size ?? 0) > 0;
+
+  const logoUrl = hasLogoUpload
+    ? await saveUploadedFile(logoFile, "app-logo")
+    : null;
+
+  if (hasLogoUpload && !logoUrl) {
     const ui = await getUiSettings();
     return c.html(
       <SettingsPage
@@ -568,8 +783,10 @@ router.post("/admin/settings", requireAuth, requireAdmin, async (c) => {
         username={user.username}
         appDescription={ui.appDescription}
         logoUrl={ui.appLogoUrl}
+        logoIsDefault={ui.appLogoIsDefault}
         avatarUrl={getAvatarUrl(user)}
         maintenance={await getMaintenanceMode()}
+        mediaMaxMb={Number.isFinite(mediaMaxMb) ? mediaMaxMb : 10}
         alert="Gagal upload logo (format tidak didukung atau ukuran terlalu besar)."
       />,
       400,
@@ -578,6 +795,7 @@ router.post("/admin/settings", requireAuth, requireAdmin, async (c) => {
   await setAppName(appName);
   await setAppDescription(appDescription);
   await setMaintenanceMode(maintenance);
+  await setMediaMaxMb(mediaMaxMb);
   if (logoUrl) await setAppLogoUrl(logoUrl);
   return c.redirect(withToast("/admin/settings", "Pengaturan disimpan", "success"));
 });
@@ -979,9 +1197,16 @@ router.get("/admin/message", requireAuth, async (c) => {
   const user = c.get("authUser");
   const { appName, appDescription, appLogoUrl } = await getUiSettings();
   const avatarUrl = getAvatarUrl(user);
+  const mediaMaxMb = await getMediaMaxMb();
   const waSessions =
     user.role === "admin" ? await listWaSessionsAll() : await listWaSessionsForUser(user.id);
   const selectedSessionId = c.req.query("sessionId") ?? undefined;
+  const history = await listActionLogs({
+    authUser: user,
+    actionType: "message",
+    sessionId: selectedSessionId,
+    limit: 25,
+  });
   return c.html(
     <MessagePage
       appName={appName}
@@ -991,6 +1216,8 @@ router.get("/admin/message", requireAuth, async (c) => {
       avatarUrl={avatarUrl}
       waSessions={waSessions as any}
       selectedSessionId={selectedSessionId}
+      mediaMaxMb={mediaMaxMb}
+      history={history as any}
     />,
   );
 });
@@ -1002,10 +1229,43 @@ router.post("/admin/message/send", requireAuth, async (c) => {
   const body = await c.req.parseBody();
   const sessionId = String(body.sessionId ?? "").trim();
   const phone = String(body.phone ?? "").trim();
-  const message = String(body.message ?? "");
-
+  const message = String(body.message ?? "").trim();
+  const mediaUrl = String((body as any).mediaUrl ?? "").trim();
+  const mediaFile = (body as any).media;
+  const mediaMaxMb = await getMediaMaxMb();
+  const maxBytes = Math.floor(mediaMaxMb * 1024 * 1024);
   const waSessions =
     user.role === "admin" ? await listWaSessionsAll() : await listWaSessionsForUser(user.id);
+  let loadedMedia: LoadedMedia | null = null;
+  try {
+    loadedMedia = await resolveMediaInput({ mediaUrl, mediaFile, maxBytes });
+  } catch (err: any) {
+    const history = await listActionLogs({
+      authUser: user,
+      actionType: "message",
+      sessionId,
+      limit: 25,
+    });
+    return c.html(
+      <MessagePage
+        appName={appName}
+        username={user.username}
+        appDescription={appDescription}
+        logoUrl={appLogoUrl}
+        avatarUrl={avatarUrl}
+        waSessions={waSessions as any}
+        selectedSessionId={sessionId}
+        mediaMaxMb={mediaMaxMb}
+        history={history as any}
+        alert={
+          err?.message === "media_too_large"
+            ? `Media terlalu besar. Maksimal ${mediaMaxMb}MB.`
+            : "Gagal memuat media. Pastikan URL/file valid."
+        }
+      />,
+      400,
+    );
+  }
 
   const allowed =
     user.role === "admin" || (waSessions as any).some((s: any) => s.sessionId === sessionId);
@@ -1019,39 +1279,20 @@ router.post("/admin/message/send", requireAuth, async (c) => {
         avatarUrl={avatarUrl}
         waSessions={waSessions as any}
         selectedSessionId={sessionId}
+        mediaMaxMb={mediaMaxMb}
         alert="Session tidak valid untuk user ini"
       />,
       403,
     );
   }
 
-  try {
-    const sessionData = sessions.get(sessionId) ?? getOrCreateSession(sessionId);
-    if (sessionData.status !== SESSION_STATUS.READY) {
-      return c.html(
-        <MessagePage
-          appName={appName}
-          username={user.username}
-          appDescription={appDescription}
-          logoUrl={appLogoUrl}
-          avatarUrl={avatarUrl}
-          waSessions={waSessions as any}
-          selectedSessionId={sessionId}
-          alert={`Sesi belum siap. Status: ${sessionData.status}`}
-        />,
-        400,
-      );
-    }
-    const chatId = `${formatPhone(phone)}@c.us`;
-    await sessionData.client.sendMessage(chatId, message);
-    return c.redirect(
-      withToast(
-        `/admin/message?sessionId=${encodeURIComponent(sessionId)}`,
-        "Pesan berhasil dikirim",
-        "success",
-      ),
-    );
-  } catch (err: any) {
+  if (!message && !loadedMedia) {
+    const history = await listActionLogs({
+      authUser: user,
+      actionType: "message",
+      sessionId,
+      limit: 25,
+    });
     return c.html(
       <MessagePage
         appName={appName}
@@ -1061,6 +1302,159 @@ router.post("/admin/message/send", requireAuth, async (c) => {
         avatarUrl={avatarUrl}
         waSessions={waSessions as any}
         selectedSessionId={sessionId}
+        mediaMaxMb={mediaMaxMb}
+        history={history as any}
+        alert='Isi "message" atau kirim media (URL/upload).'
+      />,
+      400,
+    );
+  }
+
+  try {
+    const sessionData = sessions.get(sessionId) ?? getOrCreateSession(sessionId);
+    if (sessionData.status !== SESSION_STATUS.READY) {
+      try {
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "message",
+          payload: {
+            phone,
+            message: message || null,
+            media:
+              loadedMedia
+                ? {
+                    source: loadedMedia.source,
+                    filename: loadedMedia.filename,
+                    mimetype: loadedMedia.mimetype,
+                    size: loadedMedia.size,
+                  }
+                : null,
+          },
+          success: false,
+          error: `not_ready:${sessionData.status}`,
+        });
+      } catch {}
+      const history = await listActionLogs({
+        authUser: user,
+        actionType: "message",
+        sessionId,
+        limit: 25,
+      });
+      return c.html(
+        <MessagePage
+          appName={appName}
+          username={user.username}
+          appDescription={appDescription}
+          logoUrl={appLogoUrl}
+          avatarUrl={avatarUrl}
+          waSessions={waSessions as any}
+          selectedSessionId={sessionId}
+          mediaMaxMb={mediaMaxMb}
+          history={history as any}
+          alert={`Sesi belum siap. Status: ${sessionData.status}`}
+        />,
+        400,
+      );
+    }
+    const chatId = `${formatPhone(phone)}@c.us`;
+    const sentMessageIds: string[] = [];
+    if (loadedMedia) {
+      const media = new MessageMedia(
+        loadedMedia.mimetype,
+        loadedMedia.dataB64,
+        loadedMedia.filename,
+      );
+      if (loadedMedia.isAudio) {
+        const sentMedia: any = await sessionData.client.sendMessage(chatId, media);
+        const idMedia = String(sentMedia?.id?._serialized ?? "").trim();
+        if (idMedia) sentMessageIds.push(idMedia);
+        if (message) {
+          const sentText: any = await sessionData.client.sendMessage(chatId, message);
+          const idText = String(sentText?.id?._serialized ?? "").trim();
+          if (idText) sentMessageIds.push(idText);
+        }
+      } else {
+        const sent: any = await sessionData.client.sendMessage(chatId, media, {
+          caption: message || "",
+        });
+        const id = String(sent?.id?._serialized ?? "").trim();
+        if (id) sentMessageIds.push(id);
+      }
+    } else {
+      const sent: any = await sessionData.client.sendMessage(chatId, message);
+      const id = String(sent?.id?._serialized ?? "").trim();
+      if (id) sentMessageIds.push(id);
+    }
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "message",
+        payload: {
+          phone,
+          message: message || null,
+          media:
+            loadedMedia
+              ? {
+                  source: loadedMedia.source,
+                  filename: loadedMedia.filename,
+                  mimetype: loadedMedia.mimetype,
+                  size: loadedMedia.size,
+                }
+              : null,
+          sentMessageIds,
+        },
+        success: true,
+      });
+    } catch {}
+    return c.redirect(
+      withToast(
+        `/admin/message?sessionId=${encodeURIComponent(sessionId)}`,
+        "Pesan berhasil dikirim",
+        "success",
+      ),
+    );
+  } catch (err: any) {
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "message",
+        payload: {
+          phone,
+          message: message || null,
+          media:
+            loadedMedia
+              ? {
+                  source: loadedMedia.source,
+                  filename: loadedMedia.filename,
+                  mimetype: loadedMedia.mimetype,
+                  size: loadedMedia.size,
+                }
+              : null,
+        },
+        success: false,
+        error: err?.message ?? String(err),
+      });
+    } catch {}
+    const history = await listActionLogs({
+      authUser: user,
+      actionType: "message",
+      sessionId,
+      limit: 25,
+    });
+    return c.html(
+      <MessagePage
+        appName={appName}
+        username={user.username}
+        appDescription={appDescription}
+        logoUrl={appLogoUrl}
+        avatarUrl={avatarUrl}
+        waSessions={waSessions as any}
+        selectedSessionId={sessionId}
+        mediaMaxMb={mediaMaxMb}
+        history={history as any}
         alert={err?.message ?? "Gagal mengirim pesan"}
       />,
       500,
@@ -1072,9 +1466,16 @@ router.get("/admin/broadcast", requireAuth, async (c) => {
   const user = c.get("authUser");
   const { appName, appDescription, appLogoUrl } = await getUiSettings();
   const avatarUrl = getAvatarUrl(user);
+  const mediaMaxMb = await getMediaMaxMb();
   const waSessions =
     user.role === "admin" ? await listWaSessionsAll() : await listWaSessionsForUser(user.id);
   const selectedSessionId = c.req.query("sessionId") ?? undefined;
+  const history = await listActionLogs({
+    authUser: user,
+    actionType: "broadcast",
+    sessionId: selectedSessionId,
+    limit: 25,
+  });
   return c.html(
     <BroadcastPage
       appName={appName}
@@ -1084,6 +1485,8 @@ router.get("/admin/broadcast", requireAuth, async (c) => {
       avatarUrl={avatarUrl}
       waSessions={waSessions as any}
       selectedSessionId={selectedSessionId}
+      mediaMaxMb={mediaMaxMb}
+      history={history as any}
     />,
   );
 });
@@ -1095,15 +1498,27 @@ router.post("/admin/broadcast/send", requireAuth, async (c) => {
   const body = await c.req.parseBody();
   const sessionId = String(body.sessionId ?? "").trim();
   const phonesRaw = String(body.phones ?? "");
-  const message = String(body.message ?? "");
-  const delayMs = Math.max(0, Number(body.delayMs ?? 2000));
+  const message = String(body.message ?? "").trim();
+  const mediaUrl = String((body as any).mediaUrl ?? "").trim();
+  const mediaFile = (body as any).media;
+  const delaySecRaw = String(body.delaySec ?? "5").trim();
+  const delaySec = Math.max(5, Number(delaySecRaw || "5"));
+  const delayMs = Math.floor(delaySec * 1000);
+  const mediaMaxMb = await getMediaMaxMb();
+  const maxBytes = Math.floor(mediaMaxMb * 1024 * 1024);
 
   const waSessions =
     user.role === "admin" ? await listWaSessionsAll() : await listWaSessionsForUser(user.id);
-
-  const allowed =
-    user.role === "admin" || (waSessions as any).some((s: any) => s.sessionId === sessionId);
-  if (!allowed) {
+  let loadedMedia: LoadedMedia | null = null;
+  try {
+    loadedMedia = await resolveMediaInput({ mediaUrl, mediaFile, maxBytes });
+  } catch (err: any) {
+    const history = await listActionLogs({
+      authUser: user,
+      actionType: "broadcast",
+      sessionId,
+      limit: 25,
+    });
     return c.html(
       <BroadcastPage
         appName={appName}
@@ -1113,6 +1528,38 @@ router.post("/admin/broadcast/send", requireAuth, async (c) => {
         avatarUrl={avatarUrl}
         waSessions={waSessions as any}
         selectedSessionId={sessionId}
+        mediaMaxMb={mediaMaxMb}
+        history={history as any}
+        alert={
+          err?.message === "media_too_large"
+            ? `Media terlalu besar. Maksimal ${mediaMaxMb}MB.`
+            : "Gagal memuat media. Pastikan URL/file valid."
+        }
+      />,
+      400,
+    );
+  }
+
+  const allowed =
+    user.role === "admin" || (waSessions as any).some((s: any) => s.sessionId === sessionId);
+  if (!allowed) {
+    const history = await listActionLogs({
+      authUser: user,
+      actionType: "broadcast",
+      sessionId,
+      limit: 25,
+    });
+    return c.html(
+      <BroadcastPage
+        appName={appName}
+        username={user.username}
+        appDescription={appDescription}
+        logoUrl={appLogoUrl}
+        avatarUrl={avatarUrl}
+        waSessions={waSessions as any}
+        selectedSessionId={sessionId}
+        mediaMaxMb={mediaMaxMb}
+        history={history as any}
         alert="Session tidak valid untuk user ini"
       />,
       403,
@@ -1124,42 +1571,13 @@ router.post("/admin/broadcast/send", requireAuth, async (c) => {
     .map((p) => p.trim())
     .filter(Boolean);
 
-  try {
-    const sessionData = sessions.get(sessionId) ?? getOrCreateSession(sessionId);
-    if (sessionData.status !== SESSION_STATUS.READY) {
-      return c.html(
-        <BroadcastPage
-          appName={appName}
-          username={user.username}
-          appDescription={appDescription}
-          logoUrl={appLogoUrl}
-          avatarUrl={avatarUrl}
-          waSessions={waSessions as any}
-          selectedSessionId={sessionId}
-          alert={`Sesi belum siap. Status: ${sessionData.status}`}
-        />,
-        400,
-      );
-    }
-
-    for (let i = 0; i < phones.length; i++) {
-      const raw = phones[i];
-      const formatted = formatPhone(raw);
-      const chatId = `${formatted}@c.us`;
-      await sessionData.client.sendMessage(chatId, message);
-      if (i < phones.length - 1 && delayMs > 0) {
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-      }
-    }
-
-    return c.redirect(
-      withToast(
-        `/admin/broadcast?sessionId=${encodeURIComponent(sessionId)}`,
-        "Broadcast berhasil dikirim",
-        "success",
-      ),
-    );
-  } catch (err: any) {
+  if (!phones.length) {
+    const history = await listActionLogs({
+      authUser: user,
+      actionType: "broadcast",
+      sessionId,
+      limit: 25,
+    });
     return c.html(
       <BroadcastPage
         appName={appName}
@@ -1169,11 +1587,53 @@ router.post("/admin/broadcast/send", requireAuth, async (c) => {
         avatarUrl={avatarUrl}
         waSessions={waSessions as any}
         selectedSessionId={sessionId}
-        alert={err?.message ?? "Gagal broadcast"}
+        mediaMaxMb={mediaMaxMb}
+        history={history as any}
+        alert="Field phones wajib diisi"
       />,
-      500,
+      400,
     );
   }
+  if (!message && !loadedMedia) {
+    const history = await listActionLogs({
+      authUser: user,
+      actionType: "broadcast",
+      sessionId,
+      limit: 25,
+    });
+    return c.html(
+      <BroadcastPage
+        appName={appName}
+        username={user.username}
+        appDescription={appDescription}
+        logoUrl={appLogoUrl}
+        avatarUrl={avatarUrl}
+        waSessions={waSessions as any}
+        selectedSessionId={sessionId}
+        mediaMaxMb={mediaMaxMb}
+        history={history as any}
+        alert='Isi "message" atau kirim media (URL/upload).'
+      />,
+      400,
+    );
+  }
+
+  getOrCreateSession(sessionId);
+  await enqueueBroadcastJob({
+    userId: user.id,
+    sessionId,
+    phones,
+    message,
+    media: loadedMedia,
+    delayMs,
+  });
+  return c.redirect(
+    withToast(
+      `/admin/broadcast?sessionId=${encodeURIComponent(sessionId)}`,
+      `Broadcast dijadwalkan (delay ${delaySec} detik/nomor)`,
+      "success",
+    ),
+  );
 });
 
 router.get("/admin/status", requireAuth, async (c) => {
@@ -1183,6 +1643,12 @@ router.get("/admin/status", requireAuth, async (c) => {
   const waSessions =
     user.role === "admin" ? await listWaSessionsAll() : await listWaSessionsForUser(user.id);
   const selectedSessionId = c.req.query("sessionId") ?? undefined;
+  const history = await listActionLogs({
+    authUser: user,
+    actionType: "status",
+    sessionId: selectedSessionId,
+    limit: 25,
+  });
   return c.html(
     <StatusPage
       appName={appName}
@@ -1192,6 +1658,7 @@ router.get("/admin/status", requireAuth, async (c) => {
       avatarUrl={avatarUrl}
       waSessions={waSessions as any}
       selectedSessionId={selectedSessionId}
+      history={history as any}
     />,
   );
 });
@@ -1229,6 +1696,22 @@ router.post("/admin/status/create", requireAuth, async (c) => {
   try {
     const sessionData = sessions.get(sessionId) ?? getOrCreateSession(sessionId);
     if (sessionData.status !== SESSION_STATUS.READY) {
+      try {
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "status",
+          payload: { text, mediaUrl: mediaUrl || null },
+          success: false,
+          error: `not_ready:${sessionData.status}`,
+        });
+      } catch {}
+      const history = await listActionLogs({
+        authUser: user,
+        actionType: "status",
+        sessionId,
+        limit: 25,
+      });
       return c.html(
         <StatusPage
           appName={appName}
@@ -1238,6 +1721,7 @@ router.post("/admin/status/create", requireAuth, async (c) => {
           avatarUrl={avatarUrl}
           waSessions={waSessions as any}
           selectedSessionId={sessionId}
+          history={history as any}
           alert={`Sesi belum siap. Status: ${sessionData.status}`}
         />,
         400,
@@ -1246,11 +1730,35 @@ router.post("/admin/status/create", requireAuth, async (c) => {
 
     if (mediaUrl) {
       const media = await MessageMedia.fromUrl(mediaUrl);
-      await sessionData.client.sendMessage("status@broadcast", media, {
+      const sent: any = await sessionData.client.sendMessage("status@broadcast", media, {
         caption: text || "",
+      });
+      const sentMessageIds = [String(sent?.id?._serialized ?? "")].filter(Boolean);
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "status",
+        payload: { text, mediaUrl: mediaUrl || null, sentMessageIds },
+        success: true,
       });
     } else {
       if (!text) {
+        try {
+          await createActionLog({
+            userId: user.id,
+            sessionId,
+            actionType: "status",
+            payload: { text, mediaUrl: null },
+            success: false,
+            error: "missing_text",
+          });
+        } catch {}
+        const history = await listActionLogs({
+          authUser: user,
+          actionType: "status",
+          sessionId,
+          limit: 25,
+        });
         return c.html(
           <StatusPage
             appName={appName}
@@ -1260,14 +1768,22 @@ router.post("/admin/status/create", requireAuth, async (c) => {
             avatarUrl={avatarUrl}
             waSessions={waSessions as any}
             selectedSessionId={sessionId}
+            history={history as any}
             alert='Field "text" wajib diisi jika tanpa media'
           />,
           400,
         );
       }
-      await sessionData.client.sendMessage("status@broadcast", text);
+      const sent: any = await sessionData.client.sendMessage("status@broadcast", text);
+      const sentMessageIds = [String(sent?.id?._serialized ?? "")].filter(Boolean);
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "status",
+        payload: { text, mediaUrl: null, sentMessageIds },
+        success: true,
+      });
     }
-
     return c.redirect(
       withToast(
         `/admin/status?sessionId=${encodeURIComponent(sessionId)}`,
@@ -1276,6 +1792,22 @@ router.post("/admin/status/create", requireAuth, async (c) => {
       ),
     );
   } catch (err: any) {
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "status",
+        payload: { text, mediaUrl: mediaUrl || null },
+        success: false,
+        error: err?.message ?? String(err),
+      });
+    } catch {}
+    const history = await listActionLogs({
+      authUser: user,
+      actionType: "status",
+      sessionId,
+      limit: 25,
+    });
     return c.html(
       <StatusPage
         appName={appName}
@@ -1285,11 +1817,305 @@ router.post("/admin/status/create", requireAuth, async (c) => {
         avatarUrl={avatarUrl}
         waSessions={waSessions as any}
         selectedSessionId={sessionId}
+        history={history as any}
         alert={err?.message ?? "Gagal buat status"}
       />,
       500,
     );
   }
+});
+
+router.post("/admin/history/resend", requireAuth, async (c) => {
+  const user = c.get("authUser");
+  const body = await c.req.parseBody();
+  const actionType = toHistoryActionType(String(body.actionType ?? "message"));
+  const actionLogId = String(body.actionLogId ?? "").trim();
+  const redirectTo = historyPathWithSession(actionType, String(body.sessionId ?? ""));
+  if (!actionLogId) {
+    return c.redirect(withToast(redirectTo, "Data history tidak valid", "error"));
+  }
+  const row = await getActionLogById(user, actionLogId);
+  if (!row || row.actionType !== actionType) {
+    return c.redirect(withToast(redirectTo, "History tidak ditemukan", "error"));
+  }
+
+  const sessionId = row.sessionId;
+  const allowed = await isSessionAllowedForUser(user, sessionId);
+  if (!allowed) return c.redirect(withToast(redirectTo, "Akses session ditolak", "error"));
+
+  try {
+    if (row.actionType === "message") {
+      const phone = String(row.payload?.phone ?? "").trim();
+      const groupId = String(row.payload?.groupId ?? "").trim();
+      const message = String(row.payload?.message ?? "");
+      const mediaMeta = row.payload?.media ?? null;
+      const mediaUrl =
+        mediaMeta?.source?.kind === "url" ? String(mediaMeta?.source?.url ?? "") : "";
+      if (!phone && !groupId) throw new Error("missing_target");
+      if (mediaMeta?.source?.kind === "upload") throw new Error("resend_upload_not_supported");
+      let media: LoadedMedia | null = null;
+      if (mediaUrl) {
+        const mediaMaxMb = await getMediaMaxMb();
+        media = await resolveMediaInput({
+          mediaUrl,
+          maxBytes: Math.floor(mediaMaxMb * 1024 * 1024),
+        });
+      }
+      if (!message && !media) throw new Error("missing_message_or_media");
+      const sessionData = sessions.get(sessionId) ?? getOrCreateSession(sessionId);
+      if (sessionData.status !== SESSION_STATUS.READY) {
+        throw new Error(`not_ready:${sessionData.status}`);
+      }
+      const chatId = groupId || `${formatPhone(phone)}@c.us`;
+      const sentMessageIds: string[] = [];
+      if (media) {
+        const waMedia = new MessageMedia(media.mimetype, media.dataB64, media.filename);
+        if (media.isAudio) {
+          const sentMedia: any = await sessionData.client.sendMessage(chatId, waMedia);
+          const idMedia = String(sentMedia?.id?._serialized ?? "").trim();
+          if (idMedia) sentMessageIds.push(idMedia);
+          if (message) {
+            const sentText: any = await sessionData.client.sendMessage(chatId, message);
+            const idText = String(sentText?.id?._serialized ?? "").trim();
+            if (idText) sentMessageIds.push(idText);
+          }
+        } else {
+          const sent: any = await sessionData.client.sendMessage(chatId, waMedia, {
+            caption: message || "",
+          });
+          const id = String(sent?.id?._serialized ?? "").trim();
+          if (id) sentMessageIds.push(id);
+        }
+      } else {
+        const sent: any = await sessionData.client.sendMessage(chatId, message);
+        const id = String(sent?.id?._serialized ?? "").trim();
+        if (id) sentMessageIds.push(id);
+      }
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "message",
+        payload: {
+          phone: phone || null,
+          groupId: groupId || null,
+          message: message || null,
+          media: mediaMeta ?? null,
+          resentFrom: row.id,
+          sentMessageIds,
+        },
+        success: true,
+      });
+      return c.redirect(withToast(redirectTo, "Resend berhasil", "success"));
+    }
+
+    if (row.actionType === "broadcast") {
+      const phones = Array.isArray(row.payload?.phones)
+        ? row.payload.phones.map((v: any) => String(v).trim()).filter(Boolean)
+        : [];
+      const message = String(row.payload?.message ?? "");
+      const mediaMeta = row.payload?.media ?? null;
+      const mediaUrl =
+        mediaMeta?.source?.kind === "url" ? String(mediaMeta?.source?.url ?? "") : "";
+      if (!phones.length) throw new Error("missing_phones");
+      if (mediaMeta?.source?.kind === "upload") throw new Error("resend_upload_not_supported");
+      let media: LoadedMedia | null = null;
+      if (mediaUrl) {
+        const mediaMaxMb = await getMediaMaxMb();
+        media = await resolveMediaInput({
+          mediaUrl,
+          maxBytes: Math.floor(mediaMaxMb * 1024 * 1024),
+        });
+      }
+      if (!message && !media) throw new Error("missing_message_or_media");
+      const delayMs = Math.max(5000, Number(row.payload?.delayMs ?? 5000));
+      getOrCreateSession(sessionId);
+      await enqueueBroadcastJob({
+        userId: user.id,
+        sessionId,
+        phones,
+        message,
+        media,
+        delayMs,
+      });
+      return c.redirect(withToast(redirectTo, "Resend broadcast dijadwalkan", "success"));
+    }
+
+    if (row.actionType === "status") {
+      const text = String(row.payload?.text ?? "");
+      const mediaUrl = String(row.payload?.mediaUrl ?? "").trim();
+      if (!text && !mediaUrl) throw new Error("missing_text_or_media");
+      const sessionData = sessions.get(sessionId) ?? getOrCreateSession(sessionId);
+      if (sessionData.status !== SESSION_STATUS.READY) {
+        throw new Error(`not_ready:${sessionData.status}`);
+      }
+      if (mediaUrl) {
+        const media = await MessageMedia.fromUrl(mediaUrl);
+        const sent: any = await sessionData.client.sendMessage("status@broadcast", media, {
+          caption: text || "",
+        });
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "status",
+          payload: {
+            text: text || null,
+            mediaUrl,
+            resentFrom: row.id,
+            sentMessageIds: [String(sent?.id?._serialized ?? "")].filter(Boolean),
+          },
+          success: true,
+        });
+      } else {
+        const sent: any = await sessionData.client.sendMessage("status@broadcast", text);
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "status",
+          payload: {
+            text,
+            mediaUrl: null,
+            resentFrom: row.id,
+            sentMessageIds: [String(sent?.id?._serialized ?? "")].filter(Boolean),
+          },
+          success: true,
+        });
+      }
+      return c.redirect(withToast(redirectTo, "Resend status berhasil", "success"));
+    }
+  } catch (err: any) {
+    return c.redirect(withToast(redirectTo, err?.message ?? "Resend gagal", "error"));
+  }
+  return c.redirect(withToast(redirectTo, "Aksi tidak didukung", "error"));
+});
+
+router.post("/admin/history/unsend", requireAuth, async (c) => {
+  const user = c.get("authUser");
+  const body = await c.req.parseBody();
+  const actionType = toHistoryActionType(String(body.actionType ?? "message"));
+  const actionLogId = String(body.actionLogId ?? "").trim();
+  const redirectTo = historyPathWithSession(actionType, String(body.sessionId ?? ""));
+  if (!actionLogId) {
+    return c.redirect(withToast(redirectTo, "Data history tidak valid", "error"));
+  }
+  const row = await getActionLogById(user, actionLogId);
+  if (!row || row.actionType !== actionType) {
+    return c.redirect(withToast(redirectTo, "History tidak ditemukan", "error"));
+  }
+  if (!isWithinUnsendWindow(row.createdAt)) {
+    return c.redirect(withToast(redirectTo, "Batas waktu unsend sudah lewat", "error"));
+  }
+  const messageIds = collectMessageIds(row.payload);
+  if (!messageIds.length) {
+    return c.redirect(withToast(redirectTo, "Data messageId tidak tersedia", "error"));
+  }
+  try {
+    const revoked = await unsendByMessageIds(row.sessionId, messageIds);
+    await createActionLog({
+      userId: user.id,
+      sessionId: row.sessionId,
+      actionType: row.actionType,
+      payload: {
+        unsendFrom: row.id,
+        unsentCount: revoked,
+        sourceMessageIds: messageIds,
+      },
+      success: true,
+    });
+    return c.redirect(withToast(redirectTo, `Unsend berhasil (${revoked})`, "success"));
+  } catch (err: any) {
+    return c.redirect(withToast(redirectTo, err?.message ?? "Unsend gagal", "error"));
+  }
+});
+
+router.post("/admin/history/delete", requireAuth, async (c) => {
+  const user = c.get("authUser");
+  const body = await c.req.parseBody();
+  const actionType = toHistoryActionType(String(body.actionType ?? "message"));
+  const actionLogId = String(body.actionLogId ?? "").trim();
+  const sessionId = String(body.sessionId ?? "").trim();
+  const redirectTo = historyPathWithSession(actionType, sessionId);
+  if (!actionLogId) {
+    return c.redirect(withToast(redirectTo, "Data history tidak valid", "error"));
+  }
+  const count = await deleteActionLogsByIds({
+    authUser: user,
+    actionType,
+    ids: [actionLogId],
+    sessionId: sessionId || undefined,
+  });
+  return c.redirect(
+    withToast(
+      redirectTo,
+      count > 0 ? "Riwayat berhasil dihapus" : "Riwayat tidak ditemukan",
+      count > 0 ? "success" : "error",
+    ),
+  );
+});
+
+router.post("/admin/history/delete-selected", requireAuth, async (c) => {
+  const user = c.get("authUser");
+  const body = await c.req.parseBody();
+  const actionType = toHistoryActionType(String(body.actionType ?? "message"));
+  const sessionId = String(body.sessionId ?? "").trim();
+  const redirectTo = historyPathWithSession(actionType, sessionId);
+  const raw = body.selectedIds;
+  const ids = Array.isArray(raw)
+    ? raw.map((v) => String(v).trim()).filter(Boolean)
+    : [String(raw ?? "").trim()].filter(Boolean);
+  if (!ids.length) {
+    return c.redirect(withToast(redirectTo, "Pilih minimal satu riwayat", "error"));
+  }
+  const count = await deleteActionLogsByIds({
+    authUser: user,
+    actionType,
+    ids,
+    sessionId: sessionId || undefined,
+  });
+  return c.redirect(
+    withToast(redirectTo, `Berhasil hapus ${count} riwayat`, "success"),
+  );
+});
+
+router.post("/admin/history/delete-all", requireAuth, async (c) => {
+  const user = c.get("authUser");
+  const body = await c.req.parseBody();
+  const actionType = toHistoryActionType(String(body.actionType ?? "message"));
+  const sessionId = String(body.sessionId ?? "").trim();
+  const redirectTo = historyPathWithSession(actionType, sessionId);
+  const count = await deleteAllActionLogs({
+    authUser: user,
+    actionType,
+    sessionId: sessionId || undefined,
+  });
+  return c.redirect(
+    withToast(redirectTo, `Berhasil hapus semua (${count})`, "success"),
+  );
+});
+
+router.get("/admin/history/download.csv", requireAuth, async (c) => {
+  const user = c.get("authUser");
+  const actionType = toHistoryActionType(String(c.req.query("actionType") ?? "message"));
+  const sessionId = String(c.req.query("sessionId") ?? "").trim();
+  const logs = await listActionLogs({
+    authUser: user,
+    actionType,
+    sessionId: sessionId || undefined,
+    limit: 2000,
+  });
+  const rows = logs.map((h) => ({
+    id: h.id,
+    createdAt: h.createdAt,
+    sessionId: h.sessionId,
+    target: h.payload?.phone ?? h.payload?.groupId ?? (h.payload?.phones ?? []).join("|"),
+    message: h.payload?.message ?? h.payload?.text ?? "",
+    status: h.success ? "sent" : "failed",
+    error: h.error ?? "",
+  }));
+  const csv = jsonToCsv(rows);
+  const filename = `history-${actionType}-${sessionId || "all"}.csv`;
+  c.header("Content-Type", "text/csv; charset=utf-8");
+  c.header("Content-Disposition", `attachment; filename="${filename}"`);
+  return c.body(csv);
 });
 
 router.get("/session/qr/:sessionId", requireAuth, async (c) => {
@@ -1452,27 +2278,131 @@ router.post("/send/:sessionId", requireApiKey, async (c) => {
     }
 
     if (sessionData.status !== SESSION_STATUS.READY) {
+      try {
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "message",
+          payload: { phone: null, message: null },
+          success: false,
+          error: `not_ready:${sessionData.status}`,
+        });
+      } catch {}
       return c.json(
         { error: `Sesi belum siap. Status: ${sessionData.status}` },
         400,
       );
     }
 
-    const body = await c.req.json();
-    const { phone, message } = body;
+    const contentType = String(c.req.header("content-type") ?? "").toLowerCase();
+    const isJson = contentType.includes("application/json");
+    const body = isJson ? await c.req.json() : await c.req.parseBody();
+    const phone = String((body as any).phone ?? "").trim();
+    const message = String((body as any).message ?? "").trim();
+    const mediaUrl = String((body as any).mediaUrl ?? "").trim();
+    const mediaFile = (body as any).media;
+    const mediaMaxMb = await getMediaMaxMb();
+    const maxBytes = Math.floor(mediaMaxMb * 1024 * 1024);
+    const loadedMedia = await resolveMediaInput({ mediaUrl, mediaFile, maxBytes });
 
-    if (!phone || !message) {
-      return c.json({ error: 'Field "phone" dan "message" wajib diisi' }, 400);
+    if (!phone || (!message && !loadedMedia)) {
+      try {
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "message",
+          payload: {
+            phone: phone || null,
+            message: message || null,
+            media:
+              loadedMedia
+                ? {
+                    source: loadedMedia.source,
+                    filename: loadedMedia.filename,
+                    mimetype: loadedMedia.mimetype,
+                    size: loadedMedia.size,
+                  }
+                : null,
+          },
+          success: false,
+          error: "missing_fields",
+        });
+      } catch {}
+      return c.json(
+        { error: 'Field "phone" wajib diisi, dan isi "message" atau kirim media (mediaUrl/media)' },
+        400,
+      );
     }
 
     const chatId = `${formatPhone(phone)}@c.us`;
-    await sessionData.client.sendMessage(chatId, message);
+    const sentMessageIds: string[] = [];
+    if (loadedMedia) {
+      const media = new MessageMedia(loadedMedia.mimetype, loadedMedia.dataB64, loadedMedia.filename);
+      if (loadedMedia.isAudio) {
+        const sentMedia: any = await sessionData.client.sendMessage(chatId, media);
+        const idMedia = String(sentMedia?.id?._serialized ?? "").trim();
+        if (idMedia) sentMessageIds.push(idMedia);
+        if (message) {
+          const sentText: any = await sessionData.client.sendMessage(chatId, message);
+          const idText = String(sentText?.id?._serialized ?? "").trim();
+          if (idText) sentMessageIds.push(idText);
+        }
+      } else {
+        const sent: any = await sessionData.client.sendMessage(chatId, media, { caption: message || "" });
+        const id = String(sent?.id?._serialized ?? "").trim();
+        if (id) sentMessageIds.push(id);
+      }
+    } else {
+      const sent: any = await sessionData.client.sendMessage(chatId, message);
+      const id = String(sent?.id?._serialized ?? "").trim();
+      if (id) sentMessageIds.push(id);
+    }
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "message",
+        payload: {
+          phone,
+          message: message || null,
+          media:
+            loadedMedia
+              ? {
+                  source: loadedMedia.source,
+                  filename: loadedMedia.filename,
+                  mimetype: loadedMedia.mimetype,
+                  size: loadedMedia.size,
+                }
+              : null,
+          sentMessageIds,
+        },
+        success: true,
+      });
+    } catch {}
 
     return c.json({
       success: true,
       message: `Pesan terkirim via sesi '${sessionId}'`,
     });
   } catch (error: any) {
+    try {
+      const sessionId = c.req.param("sessionId");
+      const contentType = String(c.req.header("content-type") ?? "").toLowerCase();
+      const isJson = contentType.includes("application/json");
+      const body = isJson ? await c.req.json().catch(() => ({})) : await c.req.parseBody().catch(() => ({} as any));
+      const user = c.get("authUser");
+      const phone = String((body as any).phone ?? "").trim();
+      const message = String((body as any).message ?? "").trim();
+      const mediaUrl = String((body as any).mediaUrl ?? "").trim();
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "message",
+        payload: { phone: phone || null, message: message || null, mediaUrl: mediaUrl || null },
+        success: false,
+        error: error?.message ?? String(error),
+      });
+    } catch {}
     return c.json(
       { error: "Gagal mengirim pesan", details: error.toString() },
       500,
@@ -1499,6 +2429,16 @@ router.post("/send-group/:sessionId", requireApiKey, async (c) => {
     }
 
     if (sessionData.status !== SESSION_STATUS.READY) {
+      try {
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "message",
+          payload: { groupId: null, message: null },
+          success: false,
+          error: `not_ready:${sessionData.status}`,
+        });
+      } catch {}
       return c.json(
         { error: `Sesi belum siap. Status: ${sessionData.status}` },
         400,
@@ -1509,12 +2449,45 @@ router.post("/send-group/:sessionId", requireApiKey, async (c) => {
     const { groupId, message } = body;
 
     if (!groupId || !message) {
+      try {
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "message",
+          payload: { groupId: groupId ?? null, message: message ?? null },
+          success: false,
+          error: "missing_fields",
+        });
+      } catch {}
       return c.json({ error: 'Field "groupId" dan "message" wajib diisi' }, 400);
     }
 
-    await sessionData.client.sendMessage(groupId, message);
+    const sent: any = await sessionData.client.sendMessage(groupId, message);
+    const sentMessageIds = [String(sent?.id?._serialized ?? "")].filter(Boolean);
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "message",
+        payload: { groupId, message, sentMessageIds },
+        success: true,
+      });
+    } catch {}
     return c.json({ success: true, message: "Pesan ke grup berhasil dikirim" });
   } catch (error: any) {
+    try {
+      const sessionId = c.req.param("sessionId");
+      const body = await c.req.json().catch(() => ({}));
+      const user = c.get("authUser");
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "message",
+        payload: { groupId: (body as any).groupId ?? null, message: (body as any).message ?? null },
+        success: false,
+        error: error?.message ?? String(error),
+      });
+    } catch {}
     return c.json(
       { error: "Gagal kirim ke grup", details: error.toString() },
       500,
@@ -1541,6 +2514,16 @@ router.post("/status/:sessionId", requireApiKey, async (c) => {
     }
 
     if (sessionData.status !== SESSION_STATUS.READY) {
+      try {
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "status",
+          payload: { text: null, mediaUrl: null },
+          success: false,
+          error: `not_ready:${sessionData.status}`,
+        });
+      } catch {}
       return c.json(
         { error: `Sesi belum siap. Status: ${sessionData.status}` },
         400,
@@ -1552,21 +2535,63 @@ router.post("/status/:sessionId", requireApiKey, async (c) => {
 
     if (mediaUrl) {
       const media = await MessageMedia.fromUrl(mediaUrl);
-      await sessionData.client.sendMessage("status@broadcast", media, {
+      const sent: any = await sessionData.client.sendMessage("status@broadcast", media, {
         caption: text || "",
       });
+      const sentMessageIds = [String(sent?.id?._serialized ?? "")].filter(Boolean);
+      try {
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "status",
+          payload: { text: text ?? null, mediaUrl: mediaUrl ?? null, sentMessageIds },
+          success: true,
+        });
+      } catch {}
     } else {
       if (!text) {
+        try {
+          await createActionLog({
+            userId: user.id,
+            sessionId,
+            actionType: "status",
+            payload: { text: null, mediaUrl: null },
+            success: false,
+            error: "missing_text",
+          });
+        } catch {}
         return c.json({ error: 'Field "text" wajib diisi jika tanpa media' }, 400);
       }
-      await sessionData.client.sendMessage("status@broadcast", text);
+      const sent: any = await sessionData.client.sendMessage("status@broadcast", text);
+      const sentMessageIds = [String(sent?.id?._serialized ?? "")].filter(Boolean);
+      try {
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "status",
+          payload: { text: text ?? null, mediaUrl: null, sentMessageIds },
+          success: true,
+        });
+      } catch {}
     }
-
     return c.json({
       success: true,
       message: `Status dibuat via sesi '${sessionId}'`,
     });
   } catch (error: any) {
+    try {
+      const sessionId = c.req.param("sessionId");
+      const body = await c.req.json().catch(() => ({}));
+      const user = c.get("authUser");
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "status",
+        payload: { text: (body as any).text ?? null, mediaUrl: (body as any).mediaUrl ?? null },
+        success: false,
+        error: error?.message ?? String(error),
+      });
+    } catch {}
     return c.json(
       { error: "Gagal buat status", details: error.toString() },
       500,
@@ -1635,39 +2660,125 @@ router.post("/broadcast/:sessionId", requireApiKey, async (c) => {
   }
 
   if (sessionData.status !== SESSION_STATUS.READY) {
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "broadcast",
+        payload: { phones: [], message: null, delayMs: null },
+        success: false,
+        error: `not_ready:${sessionData.status}`,
+      });
+    } catch {}
     return c.json(
       { error: `Sesi belum siap. Status saat ini: ${sessionData.status}` },
       400,
     );
   }
 
-  let body: any;
+  const contentType = String(c.req.header("content-type") ?? "").toLowerCase();
+  const isJson = contentType.includes("application/json");
+  const body = isJson ? await c.req.json() : await c.req.parseBody();
+  const delayMsRaw = (body as any).delayMs ?? (body as any).delayMs;
+  const delayMs: number = Math.max(
+    5000,
+    typeof delayMsRaw === "number" ? delayMsRaw : Number(String(delayMsRaw ?? "5000")),
+  );
+  const message: string = String((body as any).message ?? "").trim();
+  const mediaUrl = String((body as any).mediaUrl ?? "").trim();
+  const mediaFile = (body as any).media;
+  const mediaMaxMb = await getMediaMaxMb();
+  const maxBytes = Math.floor(mediaMaxMb * 1024 * 1024);
+  let loadedMedia: LoadedMedia | null = null;
   try {
-    body = await c.req.json();
-  } catch {
-    return c.json({ error: "Body request tidak valid (harus JSON)" }, 400);
+    loadedMedia = await resolveMediaInput({ mediaUrl, mediaFile, maxBytes });
+  } catch (err: any) {
+    return c.json(
+      {
+        error:
+          err?.message === "media_too_large"
+            ? `Media terlalu besar. Maksimal ${mediaMaxMb}MB.`
+            : "Gagal memuat media. Pastikan URL/file valid.",
+      },
+      400,
+    );
   }
 
-  const phones: string[] = body.phones;
-  const message: string = body.message;
-  const delayMs: number = typeof body.delayMs === "number" ? body.delayMs : 2000;
+  const phones: string[] = Array.isArray((body as any).phones)
+    ? (body as any).phones
+    : String((body as any).phones ?? "")
+        .split(/[\n,]/g)
+        .map((p) => p.trim())
+        .filter(Boolean);
 
   if (!Array.isArray(phones) || phones.length === 0) {
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "broadcast",
+        payload: {
+          phones: Array.isArray(phones) ? phones : [],
+          message: message || null,
+          mediaUrl: mediaUrl || null,
+          delayMs,
+        },
+        success: false,
+        error: "missing_phones",
+      });
+    } catch {}
     return c.json(
       { error: 'Field "phones" wajib berupa array dan tidak boleh kosong' },
       400,
     );
   }
-  if (!message) {
-    return c.json({ error: 'Field "message" wajib diisi' }, 400);
+  if (!message && !loadedMedia) {
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "broadcast",
+        payload: {
+          phones,
+          message: message || null,
+          mediaUrl: mediaUrl || null,
+          delayMs,
+        },
+        success: false,
+        error: "missing_message_or_media",
+      });
+    } catch {}
+    return c.json(
+      { error: 'Isi "message" atau kirim media (mediaUrl/media)' },
+      400,
+    );
   }
   if (phones.length > 200) {
+    try {
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "broadcast",
+        payload: {
+          phones,
+          message: message || null,
+          mediaUrl: mediaUrl || null,
+          delayMs,
+        },
+        success: false,
+        error: "too_many_phones",
+      });
+    } catch {}
     return c.json({ error: "Maksimal 200 nomor per request broadcast" }, 400);
   }
 
   const results: BroadcastResult[] = [];
+  const sentItems: Array<{ phone: string; messageIds: string[] }> = [];
   let successCount = 0;
   let failCount = 0;
+  const media = loadedMedia
+    ? new MessageMedia(loadedMedia.mimetype, loadedMedia.dataB64, loadedMedia.filename)
+    : null;
 
   for (let i = 0; i < phones.length; i++) {
     const raw = phones[i];
@@ -1675,7 +2786,28 @@ router.post("/broadcast/:sessionId", requireApiKey, async (c) => {
     const chatId = `${formatted}@c.us`;
 
     try {
-      await sessionData.client.sendMessage(chatId, message);
+      const sentMessageIds: string[] = [];
+      if (media) {
+        if (loadedMedia?.isAudio) {
+          const sentMedia: any = await sessionData.client.sendMessage(chatId, media);
+          const idMedia = String(sentMedia?.id?._serialized ?? "").trim();
+          if (idMedia) sentMessageIds.push(idMedia);
+          if (message) {
+            const sentText: any = await sessionData.client.sendMessage(chatId, message);
+            const idText = String(sentText?.id?._serialized ?? "").trim();
+            if (idText) sentMessageIds.push(idText);
+          }
+        } else {
+          const sent: any = await sessionData.client.sendMessage(chatId, media, { caption: message || "" });
+          const id = String(sent?.id?._serialized ?? "").trim();
+          if (id) sentMessageIds.push(id);
+        }
+      } else {
+        const sent: any = await sessionData.client.sendMessage(chatId, message);
+        const id = String(sent?.id?._serialized ?? "").trim();
+        if (id) sentMessageIds.push(id);
+      }
+      if (sentMessageIds.length > 0) sentItems.push({ phone: raw, messageIds: sentMessageIds });
       results.push({ phone: raw, status: "sent" });
       successCount++;
       console.log(
@@ -1698,10 +2830,37 @@ router.post("/broadcast/:sessionId", requireApiKey, async (c) => {
     }
   }
 
-  return c.json({
+  const response = {
     success: true,
     sessionId,
     summary: { total: phones.length, sent: successCount, failed: failCount },
     results,
-  });
+  };
+
+  try {
+    await createActionLog({
+      userId: user.id,
+      sessionId,
+      actionType: "broadcast",
+      payload: {
+        phones,
+        message: message || null,
+        media:
+          loadedMedia
+            ? {
+                source: loadedMedia.source,
+                filename: loadedMedia.filename,
+                mimetype: loadedMedia.mimetype,
+                size: loadedMedia.size,
+              }
+            : null,
+        delayMs,
+        summary: response.summary,
+        sentItems,
+      },
+      success: true,
+    });
+  } catch {}
+
+  return c.json(response);
 });

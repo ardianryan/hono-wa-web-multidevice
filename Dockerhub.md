@@ -18,6 +18,8 @@ docker run -d \
   -e PGPASSWORD=your_password \
   -e DEFAULT_ADMIN_USERNAME=admin \
   -e DEFAULT_ADMIN_PASSWORD=admin123 \
+  -e WEBHOOK_URL=http://host.docker.internal:3040/webhook \
+  -e WEBHOOK_SECRET=your_secret_value \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/.wwebjs_auth:/app/.wwebjs_auth \
   -v $(pwd)/.wwebjs_cache:/app/.wwebjs_cache \
@@ -50,6 +52,8 @@ services:
       PGPASSWORD: your_password
       DEFAULT_ADMIN_USERNAME: admin
       DEFAULT_ADMIN_PASSWORD: admin123
+      WEBHOOK_URL: http://host.docker.internal:3040/webhook
+      WEBHOOK_SECRET: your_secret_value
     volumes:
       - ./data:/app/data
       - ./.wwebjs_auth:/app/.wwebjs_auth
@@ -104,7 +108,11 @@ Catatan:
 
 - Login: `GET /login`
 - Dashboard: `GET /admin`
-- Sessions: `GET /admin/sessions` (scan QR via modal)
+- Sessions: `GET /admin/sessions` (scan QR via modal, atur webhook per session)
+- Message: `GET /admin/message` (kirim teks atau media)
+- Broadcast: `GET /admin/broadcast` (queue + delay minimal 5 detik/nomor)
+- Status: `GET /admin/status` (text atau mediaUrl)
+- Pengaturan: `GET /admin/settings` (termasuk batas ukuran media)
 - API Docs + Generate API Key: `GET /admin/api-docs`
 
 ## API Auth (Integrasi)
@@ -136,6 +144,19 @@ Body JSON:
 { "phone": "081234567890", "message": "Halo!" }
 ```
 
+Kirim media via URL (opsional):
+
+```json
+{ "phone": "081234567890", "message": "Caption", "mediaUrl": "https://example.com/file.jpg" }
+```
+
+Atau upload file (multipart/form-data):
+
+- field: `phone` (wajib)
+- field: `message` (opsional jika ada media)
+- field: `mediaUrl` (opsional, diutamakan)
+- field file: `media` (opsional)
+
 ### `POST /send-group/:sessionId`
 
 Body JSON:
@@ -148,43 +169,49 @@ Body JSON:
 
 Body JSON:
 
+```json
+{ "phones": ["0812...","0898..."], "message": "Halo", "delayMs": 5000 }
+```
+
+Kirim broadcast media via URL (message boleh kosong jika ada media):
 
 ```json
-  "phones": ["0812...","0898..."],
-  "message": "Halo",
-  "delayMs": 2000
-  ]
-}
+{ "phones": ["0812...","0898..."], "message": "Caption", "mediaUrl": "https://example.com/file.pdf", "delayMs": 5000 }
 ```
+
+Atau upload file (multipart/form-data):
+
+- field: `phones` (boleh array JSON atau string newline/koma)
+- field: `message` (opsional jika ada media)
+- field: `mediaUrl` (opsional, diutamakan)
+- field file: `media` (opsional)
+- field: `delayMs` (optional, minimal 5000)
+
 ### `POST /status/:sessionId`
----
 Body JSON:
-### `POST /send/:sessionId`
+
 ```json
 { "text": "Halo!" }
 ```
-Kirim pesan teks ke nomor WhatsApp.
+
 Atau status media:
-| `message` | `string` | ✅ | Isi pesan |
 
 ```json
-  "mediaUrl": "https://example.com/image.jpg",
-  "text": "Caption"
-  "message": "Halo! Ini pesan otomatis."
+{ "mediaUrl": "https://example.com/image.jpg", "text": "Caption" }
 }
 ```
+
 ### `DELETE /session/:sessionId`
-### `POST /send-group/:sessionId`
+
 Logout + stop runtime + hapus record session (sesuai scope user/admin).
-Kirim pesan ke grup WhatsApp.
+
 ## Contoh cURL
-| `message` | `string` | ✅ | Isi pesan |
+
 ```bash
 curl -X POST "http://localhost:3000/send/sesi1" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: <API_KEY_ANDA>" \
   -d '{"phone":"081234567890","message":"Halo!"}'
-```
 ```
 
 ---
@@ -192,6 +219,6 @@ curl -X POST "http://localhost:3000/send/sesi1" \
 ## ⚠️ Catatan Penting
 - Scan QR dilakukan dari UI `/admin/sessions` (QR endpoint tidak public).
 - Aksi API membutuhkan session runtime berstatus **READY**.
-- Semua endpoint (kecuali `/session/qr` dan `/session/pair`) memerlukan sesi berstatus **`ready`**.
 - Sesi terputus akan dihapus otomatis dari memori setelah **30 detik**.
 - Broadcast dibatasi maksimal **200 nomor** per request.
+- Default batas ukuran media: **10MB** (bisa diubah dari admin settings).

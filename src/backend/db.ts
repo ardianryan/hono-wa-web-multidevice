@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
-import { appSettings, authSessions, users, waSessions } from "./schema.js";
+import { actionLogs, appSettings, authSessions, users, waSessions } from "./schema.js";
 
 const pool = new Pool({
   ...(process.env.DATABASE_URL
@@ -18,7 +18,7 @@ const pool = new Pool({
 
 export const getDb = () => pool;
 export const db = drizzle(pool);
-export const appSchema = { appSettings, users, authSessions, waSessions };
+export const appSchema = { appSettings, users, authSessions, waSessions, actionLogs };
 
 export const ensureSchema = async () => {
   const db = getDb();
@@ -76,6 +76,32 @@ export const ensureSchema = async () => {
   `);
 
   await db.query(`alter table wa_sessions add column if not exists webhook_url text;`);
+
+  await db.query(`
+    create table if not exists action_logs (
+      id uuid primary key,
+      user_id uuid not null references users(id) on delete cascade,
+      session_id text not null,
+      action_type text not null,
+      payload jsonb not null,
+      success integer not null default 1,
+      error text,
+      created_at timestamptz not null default now()
+    );
+  `);
+
+  await db.query(
+    `create index if not exists action_logs_user_id_idx on action_logs(user_id);`,
+  );
+  await db.query(
+    `create index if not exists action_logs_session_id_idx on action_logs(session_id);`,
+  );
+  await db.query(
+    `create index if not exists action_logs_action_type_idx on action_logs(action_type);`,
+  );
+  await db.query(
+    `create index if not exists action_logs_created_at_idx on action_logs(created_at);`,
+  );
 };
 
 export const getSetting = async (key: string): Promise<string | null> => {
@@ -117,4 +143,7 @@ export const ensureDefaultSettings = async () => {
 
   const logoUrl = await getSetting("app_logo_url");
   if (logoUrl === null) await setSetting("app_logo_url", "");
+
+  const mediaMaxMb = await getSetting("media_max_mb");
+  if (mediaMaxMb === null) await setSetting("media_max_mb", "10");
 };

@@ -91,7 +91,26 @@ Catatan:
 - Login: `GET /login`
 - Dashboard: `GET /admin`
 - Sessions: `GET /admin/sessions` (scan QR via modal, atur webhook per session)
+- Message: `GET /admin/message` (kirim teks atau media)
+- Broadcast: `GET /admin/broadcast` (queue + delay minimal 5 detik/nomor)
+- Status: `GET /admin/status` (text atau mediaUrl)
+- Pengaturan: `GET /admin/settings` (termasuk batas ukuran media)
 - API Docs + Generate API Key: `GET /admin/api-docs`
+
+## Fitur Utama
+
+- Multi-session WhatsApp (runtime map) + QR connect dari dashboard
+- Webhook default via env + webhook per device/session (bisa diatur user dari UI)
+- Message:
+  - teks
+  - media (gambar/video/audio/document) via URL (diutamakan) atau upload
+- Broadcast:
+  - queue/delay per nomor (minimal 5 detik wajib)
+  - dukung media via URL (diutamakan) atau upload (dari UI)
+- History (Message/Broadcast/Status):
+  - Resend, Unsend (batas waktu WhatsApp), Delete
+  - Bulk action: Delete Selected, Delete All, Download CSV
+- Database PostgreSQL + Drizzle ORM + drizzle-kit
 
 ## API Auth (Integrasi)
 
@@ -131,6 +150,19 @@ Body JSON:
 { "phone": "081234567890", "message": "Halo!" }
 ```
 
+Kirim media via URL (opsional):
+
+```json
+{ "phone": "081234567890", "message": "Caption", "mediaUrl": "https://example.com/file.jpg" }
+```
+
+Atau upload file (multipart/form-data):
+
+- field: `phone` (wajib)
+- field: `message` (opsional jika ada media)
+- field: `mediaUrl` (opsional, diutamakan)
+- field file: `media` (opsional)
+
 ### `POST /send-group/:sessionId`
 
 Body JSON:
@@ -147,6 +179,20 @@ Body JSON:
 { "phones": ["0812...","0898..."], "message": "Halo", "delayMs": 2000 }
 ```
 
+Kirim broadcast media via URL (message boleh kosong jika ada media):
+
+```json
+{ "phones": ["0812...","0898..."], "message": "Caption", "mediaUrl": "https://example.com/file.pdf", "delayMs": 5000 }
+```
+
+Atau upload file (multipart/form-data):
+
+- field: `phones` (boleh array JSON atau string newline/koma)
+- field: `message` (opsional jika ada media)
+- field: `mediaUrl` (opsional, diutamakan)
+- field file: `media` (opsional)
+- field: `delayMs` (optional, minimal 5000)
+
 ### `POST /status/:sessionId`
 
 Body JSON:
@@ -160,6 +206,21 @@ Atau status media:
 ```json
 { "mediaUrl": "https://example.com/image.jpg", "text": "Caption" }
 ```
+
+## Catatan Media & Limit Ukuran
+
+- Default batas ukuran media: **10MB**.
+- Bisa diubah dari UI Admin: `GET /admin/settings` → `Batas ukuran media (MB)`.
+- Limit ini dipakai untuk:
+  - upload media dari UI/API (multipart)
+  - download media via URL (server akan fetch file lalu kirim via WhatsApp)
+
+## Catatan History (Resend/Unsend)
+
+- Tombol `Unsend` hanya aktif jika:
+  - history punya `sentMessageIds` (tersimpan saat kirim sukses), dan
+  - belum lewat batas waktu WhatsApp (dibatasi 48 jam di UI).
+- Log lama (sebelum update ini) mungkin belum punya `sentMessageIds`, jadi `Unsend` tidak tersedia.
 
 ### `DELETE /session/:sessionId`
 
