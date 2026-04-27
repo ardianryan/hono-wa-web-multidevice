@@ -1,6 +1,7 @@
 import type { FC } from "hono/jsx";
 import { AdminLayout, PageHeader } from "./ui.js";
 import { SessionSelect } from "../../components/SessionSelect.js";
+import { Skeleton } from "../../components/Skeleton.js";
 
 type LayoutBase = {
   appName: string;
@@ -49,10 +50,12 @@ const canUnsend = (row: ActionLogRow) =>
 
 export const StatusPage: FC<
   LayoutBase & {
+    role?: "admin" | "user";
     waSessions: WaSessionRow[];
     selectedSessionId?: string;
     alert?: string;
     history?: ActionLogRow[];
+    isLoading?: boolean;
   }
 > = (props) => (
   <AdminLayout
@@ -61,6 +64,7 @@ export const StatusPage: FC<
     appDescription={props.appDescription}
     logoUrl={props.logoUrl}
     avatarUrl={props.avatarUrl}
+    role={props.role}
     active="status"
   >
     <PageHeader
@@ -70,6 +74,9 @@ export const StatusPage: FC<
     {props.alert ? <div class="alert">{props.alert}</div> : null}
     <div class="grid">
       <div class="card" style="grid-column: span 12;">
+        {props.isLoading ? (
+          <Skeleton height={280} />
+        ) : (
         <form method="post" action="/admin/status/create">
           <div class="formRow">
             <div class="label">Session</div>
@@ -97,9 +104,14 @@ export const StatusPage: FC<
             </button>
           </div>
         </form>
+        )}
       </div>
       <div class="card" style="grid-column: span 12;">
         <div class="statLabel">History Status</div>
+        {props.isLoading ? (
+          <div style="margin-top: 12px;"><Skeleton height={300} /></div>
+        ) : (
+        <>
         <div class="muted" style="margin-top: 8px; font-size: 13px;">
           Menampilkan {String((props.history ?? []).length)} data terbaru.
         </div>
@@ -221,6 +233,8 @@ export const StatusPage: FC<
             ))}
           </tbody>
         </table>
+        </>
+        )}
       </div>
     </div>
   </AdminLayout>

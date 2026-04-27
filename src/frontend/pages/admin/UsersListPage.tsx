@@ -1,5 +1,6 @@
 import type { FC } from "hono/jsx";
 import { AdminLayout, PageHeader } from "./ui.js";
+import { Skeleton } from "../../components/Skeleton.js";
 
 type LayoutBase = {
   appName: string;
@@ -21,6 +22,7 @@ export const UsersListPage: FC<
   LayoutBase & {
     users: UserRow[];
     alert?: string;
+    isLoading?: boolean;
   }
 > = (props) => (
   <AdminLayout
@@ -29,6 +31,7 @@ export const UsersListPage: FC<
     appDescription={props.appDescription}
     logoUrl={props.logoUrl}
     avatarUrl={props.avatarUrl}
+    role="admin"
     active="users"
   >
     <PageHeader
@@ -43,6 +46,9 @@ export const UsersListPage: FC<
     {props.alert ? <div class="alert">{props.alert}</div> : null}
     <div class="grid">
       <div class="card" style="grid-column: span 12;">
+        {props.isLoading ? (
+          <Skeleton height={300} />
+        ) : (
         <table class="table">
           <thead>
             <tr>
@@ -76,6 +82,7 @@ export const UsersListPage: FC<
             ))}
           </tbody>
         </table>
+        )}
       </div>
     </div>
   </AdminLayout>

@@ -11,6 +11,7 @@ type LayoutBase = {
 
 export const ApiDocsPage: FC<
   LayoutBase & {
+    role?: "admin" | "user";
     apiKeyLast4?: string | null;
     apiKeyCreatedAt?: string | null;
     newApiKey?: string | null;
@@ -23,6 +24,7 @@ export const ApiDocsPage: FC<
     appDescription={props.appDescription}
     logoUrl={props.logoUrl}
     avatarUrl={props.avatarUrl}
+    role={props.role}
     active="apiDocs"
   >
     <PageHeader

@@ -1,4 +1,5 @@
 import type { FC } from "hono/jsx";
+import { Skeleton } from "../../components/Skeleton.js";
 
 export type AdminNavKey =
   | "dashboard"
@@ -409,6 +410,44 @@ const baseCss = `
     animation: spin 1s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  
+  /* Skeleton Loading */
+  @keyframes react-loading-skeleton {
+    100% { transform: translateX(100%); }
+  }
+  .react-loading-skeleton {
+    --base-color: #ebebeb;
+    --highlight-color: #f5f5f5;
+    --animation-duration: 1.5s;
+    --animation-direction: normal;
+    --pseudo-element-display: block;
+    background-color: var(--base-color);
+    width: 100%;
+    border-radius: 0.25rem;
+    display: inline-flex;
+    line-height: 1;
+    position: relative;
+    user-select: none;
+    overflow: hidden;
+  }
+  .react-loading-skeleton::after {
+    content: ' ';
+    display: var(--pseudo-element-display);
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 100%;
+    background-repeat: no-repeat;
+    background-image: var(--custom-highlight-background, linear-gradient(90deg, var(--base-color) 0%, var(--highlight-color) 50%, var(--base-color) 100%));
+    transform: translateX(-100%);
+    animation-name: react-loading-skeleton;
+    animation-direction: var(--animation-direction);
+    animation-duration: var(--animation-duration);
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+  }
+  @media (prefers-reduced-motion) {
+    .react-loading-skeleton { --pseudo-element-display: none; }
+  }
 `;
 
 const NavItem: FC<{
@@ -430,6 +469,7 @@ export const AdminLayout: FC<{
   logoUrl?: string;
   avatarUrl?: string;
   active: AdminNavKey;
+  role?: "admin" | "user";
   children?: any;
 }> = (props) => (
   <html
@@ -534,18 +574,22 @@ export const AdminLayout: FC<{
               icon="fa-solid fa-circle-check"
               active={props.active === "status"}
             />
-            <NavItem
-              href="/admin/users"
-              label="Manajemen User"
-              icon="fa-solid fa-users"
-              active={props.active === "users"}
-            />
-            <NavItem
-              href="/admin/settings"
-              label="Pengaturan"
-              icon="fa-solid fa-sliders"
-              active={props.active === "settings"}
-            />
+            {props.role === "admin" ? (
+              <NavItem
+                href="/admin/users"
+                label="Manajemen User"
+                icon="fa-solid fa-users"
+                active={props.active === "users"}
+              />
+            ) : null}
+            {props.role === "admin" ? (
+              <NavItem
+                href="/admin/settings"
+                label="Pengaturan"
+                icon="fa-solid fa-sliders"
+                active={props.active === "settings"}
+              />
+            ) : null}
             <NavItem
               href="/admin/api-docs"
               label="API Docs"
@@ -722,11 +766,13 @@ export const PageHeader: FC<{ title: string; subtitle: string; actions?: any }> 
   </div>
 );
 
-export const StatCard: FC<{ label: string; value: string; colSpan: number }> = (
+export const StatCard: FC<{ label: string; value: string; colSpan: number; isLoading?: boolean }> = (
   props,
 ) => (
   <div class="card" style={`grid-column: span ${props.colSpan}; position: relative; overflow: hidden;`}>
     <div class="statLabel">{props.label}</div>
-    <div class="statValue">{props.value}</div>
+    <div class="statValue">
+      {props.isLoading ? <Skeleton height={32} width="60%" /> : props.value}
+    </div>
   </div>
 );

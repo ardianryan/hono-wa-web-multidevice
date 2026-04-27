@@ -1,5 +1,6 @@
 import type { FC } from "hono/jsx";
 import { AdminLayout, PageHeader } from "./ui.js";
+import { Skeleton } from "../../components/Skeleton.js";
 
 type LayoutBase = {
   appName: string;
@@ -26,6 +27,7 @@ export const SessionsPage: FC<
     runtimeSessionIds: string[];
     openQrSessionId?: string;
     alert?: string;
+    isLoading?: boolean;
   }
 > = (props) => (
   <AdminLayout
@@ -34,6 +36,7 @@ export const SessionsPage: FC<
     appDescription={props.appDescription}
     logoUrl={props.logoUrl}
     avatarUrl={props.avatarUrl}
+    role={props.role}
     active="sessions"
   >
     <PageHeader
@@ -43,6 +46,10 @@ export const SessionsPage: FC<
     {props.alert ? <div class="alert">{props.alert}</div> : null}
     <div class="grid">
       <div class="card" style="grid-column: span 12;">
+        {props.isLoading ? (
+          <Skeleton height={200} />
+        ) : (
+        <>
         <div class="statLabel">Buat Session Baru</div>
         <div class="muted" style="margin-top: 8px; font-size: 13px;">
           Limit device:{" "}
@@ -71,10 +78,15 @@ export const SessionsPage: FC<
             </button>
           </div>
         </form>
+        </>
+        )}
       </div>
 
       <div class="card" style="grid-column: span 12;">
         <div class="statLabel">Daftar Session</div>
+        {props.isLoading ? (
+          <div style="margin-top: 12px;"><Skeleton height={300} /></div>
+        ) : (
         <table class="table">
           <thead>
             <tr>
@@ -150,6 +162,7 @@ export const SessionsPage: FC<
             ))}
           </tbody>
         </table>
+        )}
       </div>
     </div>
 

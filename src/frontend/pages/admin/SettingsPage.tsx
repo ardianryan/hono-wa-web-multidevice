@@ -23,6 +23,7 @@ export const SettingsPage: FC<
     appDescription={props.appDescription}
     logoUrl={props.logoUrl}
     avatarUrl={props.avatarUrl}
+    role="admin"
     active="settings"
   >
     <PageHeader

@@ -15,6 +15,7 @@ export const DashboardPage: FC<
     totalUsers: number;
     totalWaSessions: number;
     runtimeSessions: number;
+    isLoading?: boolean;
   }
 > = (props) => (
   <AdminLayout
@@ -23,6 +24,7 @@ export const DashboardPage: FC<
     appDescription={props.appDescription}
     logoUrl={props.logoUrl}
     avatarUrl={props.avatarUrl}
+    role={props.role}
     active="dashboard"
   >
     <PageHeader
@@ -46,16 +48,19 @@ export const DashboardPage: FC<
         label="Total Users"
         value={String(props.totalUsers)}
         colSpan={4}
+        isLoading={props.isLoading}
       />
       <StatCard
         label="Total WA Sessions"
         value={String(props.totalWaSessions)}
         colSpan={4}
+        isLoading={props.isLoading}
       />
       <StatCard
         label="Runtime Sessions"
         value={String(props.runtimeSessions)}
         colSpan={4}
+        isLoading={props.isLoading}
       />
       <div class="card" style="grid-column: span 12;">
         <div class="statLabel">Quick Links</div>

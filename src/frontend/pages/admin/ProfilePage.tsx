@@ -11,6 +11,7 @@ type LayoutBase = {
 
 export const ProfilePage: FC<
   LayoutBase & {
+    role?: "admin" | "user";
     email?: string | null;
     avatarUrl: string;
     gravatarUrl: string;
@@ -24,6 +25,7 @@ export const ProfilePage: FC<
     appDescription={props.appDescription}
     logoUrl={props.logoUrl}
     avatarUrl={props.avatarUrl}
+    role={props.role}
     active="profile"
   >
     <PageHeader

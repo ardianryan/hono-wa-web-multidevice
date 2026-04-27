@@ -1,6 +1,10 @@
 import type { FC } from "hono/jsx";
 import { AdminLayout, PageHeader } from "./ui.js";
 import { SessionSelect } from "../../components/SessionSelect.js";
+import { HistoryTable } from "../../client/history-table.js";
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
+import { Skeleton } from "../../components/Skeleton.js";
 
 type LayoutBase = {
   appName: string;
@@ -49,11 +53,13 @@ const canUnsend = (row: ActionLogRow) =>
 
 export const BroadcastPage: FC<
   LayoutBase & {
+    role?: "admin" | "user";
     waSessions: WaSessionRow[];
     selectedSessionId?: string;
     mediaMaxMb?: number;
     alert?: string;
     history?: ActionLogRow[];
+    isLoading?: boolean;
   }
 > = (props) => (
   <AdminLayout
@@ -62,6 +68,7 @@ export const BroadcastPage: FC<
     appDescription={props.appDescription}
     logoUrl={props.logoUrl}
     avatarUrl={props.avatarUrl}
+    role={props.role}
     active="broadcast"
   >
     <PageHeader
@@ -71,6 +78,9 @@ export const BroadcastPage: FC<
     {props.alert ? <div class="alert">{props.alert}</div> : null}
     <div class="grid">
       <div class="card" style="grid-column: span 12;">
+        {props.isLoading ? (
+          <Skeleton height={460} />
+        ) : (
         <form
           method="post"
           action="/admin/broadcast/send"
@@ -132,9 +142,14 @@ export const BroadcastPage: FC<
             </button>
           </div>
         </form>
+        )}
       </div>
       <div class="card" style="grid-column: span 12;">
         <div class="statLabel">History Broadcast</div>
+        {props.isLoading ? (
+          <div style="margin-top: 12px;"><Skeleton height={300} /></div>
+        ) : (
+        <>
         <div class="muted" style="margin-top: 8px; font-size: 13px;">
           Menampilkan {String((props.history ?? []).length)} data terbaru.
         </div>
@@ -168,110 +183,19 @@ export const BroadcastPage: FC<
             </a>
           </div>
         </form>
-        <table class="table" style="margin-top: 12px;">
-          <thead>
-            <tr>
-              <th>Pilih</th>
-              <th>Waktu</th>
-              <th>Session</th>
-              <th>Total</th>
-              <th>Delay</th>
-              <th>Ringkas</th>
-              <th>Status</th>
-              <th>Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(props.history ?? []).map((h) => (
-              <tr>
-                <td class="muted">
-                  <input
-                    type="checkbox"
-                    name="selectedIds"
-                    value={h.id}
-                    form="history-broadcast-bulk-form"
-                  />
-                </td>
-                <td class="muted">{new Date(h.createdAt).toLocaleString()}</td>
-                <td>{h.sessionId}</td>
-                <td class="muted">
-                  {String((h.payload?.phones ?? []).length)}
-                </td>
-                <td class="muted">
-                  {h.payload?.delayMs
-                    ? String(Math.floor(Number(h.payload.delayMs) / 1000))
-                    : "-"}
-                </td>
-                <td class="muted">
-                  <div style="max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                    {String(h.payload?.message ?? "-")}
-                  </div>
-                </td>
-                <td class="muted">
-                  {h.success
-                    ? "sent"
-                    : `failed${h.error ? `: ${h.error}` : ""}`}
-                </td>
-                <td>
-                  <div class="btnRow">
-                    <form method="post" action="/admin/history/resend">
-                      <input
-                        type="hidden"
-                        name="actionType"
-                        value="broadcast"
-                      />
-                      <input
-                        type="hidden"
-                        name="sessionId"
-                        value={props.selectedSessionId ?? ""}
-                      />
-                      <input type="hidden" name="actionLogId" value={h.id} />
-                      <button class="btn success" type="submit">
-                        Resend
-                      </button>
-                    </form>
-                    <form method="post" action="/admin/history/unsend">
-                      <input
-                        type="hidden"
-                        name="actionType"
-                        value="broadcast"
-                      />
-                      <input
-                        type="hidden"
-                        name="sessionId"
-                        value={props.selectedSessionId ?? ""}
-                      />
-                      <input type="hidden" name="actionLogId" value={h.id} />
-                      <button
-                        class="btn warning"
-                        type="submit"
-                        disabled={!canUnsend(h)}
-                      >
-                        Unsend
-                      </button>
-                    </form>
-                    <form method="post" action="/admin/history/delete">
-                      <input
-                        type="hidden"
-                        name="actionType"
-                        value="broadcast"
-                      />
-                      <input
-                        type="hidden"
-                        name="sessionId"
-                        value={props.selectedSessionId ?? ""}
-                      />
-                      <input type="hidden" name="actionLogId" value={h.id} />
-                      <button class="btn danger" type="submit">
-                        Delete
-                      </button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div
+          dangerouslySetInnerHTML={{
+            __html: renderToString(
+              createElement(HistoryTable, {
+                data: props.history ?? [],
+                actionType: "broadcast",
+                selectedSessionId: props.selectedSessionId ?? "",
+              })
+            ),
+          }}
+        />
+        </>
+        )}
       </div>
     </div>
   </AdminLayout>

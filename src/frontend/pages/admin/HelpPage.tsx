@@ -7,7 +7,9 @@ type LayoutBase = {
   appDescription?: string;
   logoUrl?: string;
   avatarUrl?: string;
+  role?: "admin" | "user";
 };
+
 
 export const HelpPage: FC<LayoutBase> = (props) => (
   <AdminLayout
@@ -16,6 +18,7 @@ export const HelpPage: FC<LayoutBase> = (props) => (
     appDescription={props.appDescription}
     logoUrl={props.logoUrl}
     avatarUrl={props.avatarUrl}
+    role={props.role}
     active="dashboard"
   >
     <PageHeader title="Help" subtitle="Panduan cepat penggunaan dashboard" />
