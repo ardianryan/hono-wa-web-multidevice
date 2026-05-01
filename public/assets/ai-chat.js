@@ -29512,30 +29512,122 @@ var import_react4 = __toESM(require_react(), 1);
 var import_jsx_runtime = __toESM(require_jsx_runtime(), 1);
 var AiChat = () => {
   const [input, setInput] = (0, import_react5.useState)("");
+  const [isImageMode, setIsImageMode] = (0, import_react5.useState)(false);
+  const [imageGenerating, setImageGenerating] = (0, import_react5.useState)(false);
+  const [localMessages, setLocalMessages] = (0, import_react5.useState)([]);
+  const [conversationId] = (0, import_react5.useState)(() => "conv-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9));
   const scrollRef = (0, import_react5.useRef)(null);
-  const { messages, sendMessage, isLoading } = useChat({
-    connection: fetchServerSentEvents("/api/ai/chat")
+  const { messages, sendMessage, isLoading: isChatLoading } = useChat({
+    connection: fetchServerSentEvents("/api/ai/chat"),
+    body: { conversationId }
+  });
+  const allMessages = [...messages, ...localMessages].sort((a, b) => {
+    const timeA = new Date(a.createdAt || Date.now()).getTime();
+    const timeB = new Date(b.createdAt || Date.now()).getTime();
+    return timeA - timeB;
   });
   (0, import_react5.useEffect)(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [allMessages, isChatLoading, imageGenerating]);
+  const handleImageGeneration = async (prompt) => {
+    setImageGenerating(true);
+    const userMsg = {
+      id: "local-" + Date.now(),
+      role: "user",
+      parts: [{ type: "text", content: prompt }],
+      createdAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    setLocalMessages((prev) => [...prev, userMsg]);
+    try {
+      const res = await fetch("/api/ai/image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, conversationId })
+      });
+      const data = await res.json();
+      if (data.success && data.images && data.images.length > 0) {
+        const img = data.images[0];
+        const imageUrl = img.b64Json ? `data:image/png;base64,${img.b64Json}` : img.url;
+        const assistantMsg = {
+          id: "local-" + (Date.now() + 1),
+          role: "assistant",
+          parts: [{ type: "image", url: imageUrl }],
+          createdAt: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        setLocalMessages((prev) => [...prev, assistantMsg]);
+      } else {
+        throw new Error(data.error || "Gagal generate gambar");
+      }
+    } catch (err) {
+      const errorMsg = {
+        id: "local-" + (Date.now() + 1),
+        role: "assistant",
+        parts: [{ type: "text", content: "\u26A0\uFE0F Error: " + err.message }],
+        createdAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      setLocalMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setImageGenerating(false);
+    }
+  };
   const handleSubmit = (e) => {
     e.preventDefault();
     const trimmed = input.trim();
-    if (!trimmed || isLoading) return;
-    sendMessage(trimmed);
+    if (!trimmed || isChatLoading || imageGenerating) return;
+    if (isImageMode) {
+      handleImageGeneration(trimmed);
+    } else {
+      sendMessage(trimmed);
+    }
     setInput("");
   };
+  const isLoading = isChatLoading || imageGenerating;
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.container, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { ref: scrollRef, style: styles.messagesArea, children: [
-      messages.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.empty, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.emptyIcon, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: "fa-solid fa-robot" }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.emptyTitle, children: "Halo! Ada yang bisa dibantu?" }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.emptySub, children: "Ketik pesan untuk mulai percakapan dengan AI assistant." })
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.header, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.headerLeft, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.statusDot }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: styles.headerTitle, children: "AI Assistant" })
       ] }),
-      messages.map((message) => {
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.modeTabs, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+          "button",
+          {
+            onClick: () => setIsImageMode(false),
+            style: {
+              ...styles.modeBtn,
+              ...isImageMode ? {} : styles.modeBtnActive
+            },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: "fa-solid fa-message", style: { marginRight: "6px" } }),
+              "Chat"
+            ]
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+          "button",
+          {
+            onClick: () => setIsImageMode(true),
+            style: {
+              ...styles.modeBtn,
+              ...isImageMode ? styles.modeBtnActive : {}
+            },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: "fa-solid fa-image", style: { marginRight: "6px" } }),
+              "Generate Image"
+            ]
+          }
+        )
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { ref: scrollRef, style: styles.messagesArea, children: [
+      allMessages.length === 0 && !isLoading && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.empty, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.emptyIcon, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: isImageMode ? "fa-solid fa-wand-magic-sparkles" : "fa-solid fa-robot" }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.emptyTitle, children: isImageMode ? "Bikin Gambar Apa Hari Ini?" : "Halo! Ada yang bisa dibantu?" }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.emptySub, children: isImageMode ? "Masukkan prompt deskriptif untuk membuat gambar keren." : "Ketik pesan untuk mulai percakapan dengan AI assistant." })
+      ] }),
+      allMessages.map((message) => {
         const isAssistant = message.role === "assistant";
         return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
           "div",
@@ -29556,7 +29648,7 @@ var AiChat = () => {
                   children: message.parts.map((part, idx) => {
                     if (part.type === "thinking") {
                       return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.thinking, children: [
-                        "\u{1F4AD} ",
+                        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: "fa-solid fa-brain", style: { marginRight: "6px" } }),
                         part.content
                       ] }, idx);
                     }
@@ -29570,6 +29662,21 @@ var AiChat = () => {
                         idx
                       );
                     }
+                    if (part.type === "image") {
+                      return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.imageContainer, children: [
+                        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", { src: part.url, style: styles.image, alt: "Generated" }),
+                        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                          "a",
+                          {
+                            href: part.url,
+                            download: "generated-image.png",
+                            style: styles.downloadBtn,
+                            title: "Download Image",
+                            children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: "fa-solid fa-download" })
+                          }
+                        )
+                      ] }, idx);
+                    }
                     return null;
                   })
                 }
@@ -29579,24 +29686,26 @@ var AiChat = () => {
           message.id
         );
       }),
-      isLoading && messages[messages.length - 1]?.role !== "assistant" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { ...styles.messageRow, justifyContent: "flex-start" }, children: [
+      isLoading && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { ...styles.messageRow, justifyContent: "flex-start" }, children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.botAvatar, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: "fa-solid fa-robot", style: { fontSize: "12px" } }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { ...styles.messageBubble, ...styles.assistantBubble }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.typingDots, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { ...styles.dot, animationDelay: "0ms" } }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { ...styles.dot, animationDelay: "150ms" } }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { ...styles.dot, animationDelay: "300ms" } })
-        ] }) })
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { ...styles.messageBubble, ...styles.assistantBubble }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.typingDots, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { ...styles.dot, animationDelay: "0ms" } }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { ...styles.dot, animationDelay: "150ms" } }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { ...styles.dot, animationDelay: "300ms" } })
+          ] }),
+          imageGenerating && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: "11px", marginTop: "4px", color: "#64748b", fontWeight: 500 }, children: "Generating your masterpiece..." })
+        ] })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", { onSubmit: handleSubmit, style: styles.inputForm, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("form", { onSubmit: handleSubmit, style: styles.inputForm, children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.inputWrapper, children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         "input",
         {
           type: "text",
           value: input,
           onChange: (e) => setInput(e.target.value),
-          placeholder: "Ketik pesan...",
-          className: "input",
+          placeholder: isImageMode ? "Deskripsikan gambar yang ingin dibuat..." : "Ketik pesan...",
           style: styles.textInput,
           disabled: isLoading
         }
@@ -29606,33 +29715,90 @@ var AiChat = () => {
         {
           type: "submit",
           disabled: !input.trim() || isLoading,
-          className: "btn primary",
-          style: styles.sendBtn,
-          children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: "fa-solid fa-paper-plane" })
+          style: {
+            ...styles.sendBtn,
+            opacity: !input.trim() || isLoading ? 0.6 : 1,
+            background: isImageMode ? "linear-gradient(135deg, #ec4899, #8b5cf6)" : "linear-gradient(135deg, #3b82f6, #2563eb)"
+          },
+          children: isLoading ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "spinner-small", style: { width: "18px", height: "18px", border: "2px solid #fff", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" } }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: isImageMode ? "fa-solid fa-wand-magic-sparkles" : "fa-solid fa-paper-plane" })
         }
       )
-    ] })
+    ] }) })
   ] });
 };
 var styles = {
   container: {
     display: "flex",
     flexDirection: "column",
-    height: "calc(100vh - 200px)",
-    minHeight: "400px",
-    background: "#fff",
-    border: "1px solid rgba(199,196,216,0.35)",
-    borderRadius: "16px",
+    height: "calc(100vh - 240px)",
+    minHeight: "500px",
+    background: "#ffffff",
+    borderRadius: "24px",
     overflow: "hidden",
-    boxShadow: "0 14px 36px rgba(17,24,39,0.06)"
+    boxShadow: "0 20px 50px rgba(0,0,0,0.08)",
+    border: "1px solid rgba(226, 232, 240, 0.8)",
+    position: "relative"
+  },
+  header: {
+    padding: "16px 24px",
+    background: "#fff",
+    borderBottom: "1px solid rgba(226, 232, 240, 0.8)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    zIndex: 10
+  },
+  headerLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px"
+  },
+  statusDot: {
+    width: "8px",
+    height: "8px",
+    background: "#10b981",
+    borderRadius: "50%",
+    boxShadow: "0 0 10px rgba(16, 185, 129, 0.5)"
+  },
+  headerTitle: {
+    fontWeight: 700,
+    fontSize: "16px",
+    color: "#1e293b",
+    letterSpacing: "-0.01em"
+  },
+  modeTabs: {
+    display: "flex",
+    background: "#f1f5f9",
+    padding: "4px",
+    borderRadius: "12px",
+    gap: "4px"
+  },
+  modeBtn: {
+    border: "none",
+    background: "none",
+    padding: "6px 12px",
+    borderRadius: "8px",
+    fontSize: "13px",
+    fontWeight: 600,
+    color: "#64748b",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+    display: "flex",
+    alignItems: "center"
+  },
+  modeBtnActive: {
+    background: "#fff",
+    color: "#1e293b",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
   },
   messagesArea: {
     flex: 1,
     overflowY: "auto",
-    padding: "20px",
+    padding: "24px",
     display: "flex",
     flexDirection: "column",
-    gap: "12px"
+    gap: "16px",
+    background: "linear-gradient(to bottom, #ffffff, #f8fafc)"
   },
   empty: {
     flex: 1,
@@ -29640,71 +29806,112 @@ var styles = {
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    gap: "10px",
-    color: "rgba(70,69,85,0.55)"
+    gap: "12px",
+    textAlign: "center",
+    padding: "40px"
   },
   emptyIcon: {
-    width: "56px",
-    height: "56px",
-    borderRadius: "16px",
-    background: "linear-gradient(135deg, #3525cd, #4f46e5)",
+    width: "72px",
+    height: "72px",
+    borderRadius: "20px",
+    background: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
     display: "grid",
     placeItems: "center",
     color: "#fff",
-    fontSize: "24px",
-    boxShadow: "0 14px 30px rgba(53,37,205,0.18)"
+    fontSize: "32px",
+    boxShadow: "0 20px 40px rgba(59, 130, 246, 0.2)",
+    marginBottom: "8px"
   },
   emptyTitle: {
     fontWeight: 800,
-    fontSize: "18px",
-    letterSpacing: "-0.02em",
-    color: "#151c27",
-    marginTop: "4px"
+    fontSize: "20px",
+    color: "#0f172a"
   },
   emptySub: {
-    fontSize: "13px",
-    fontWeight: 500,
-    color: "rgba(70,69,85,0.65)"
+    fontSize: "14px",
+    color: "#64748b",
+    maxWidth: "280px",
+    lineHeight: "1.5"
   },
   messageRow: {
     display: "flex",
-    gap: "8px",
-    alignItems: "flex-end"
+    gap: "12px",
+    alignItems: "flex-end",
+    width: "100%"
   },
   botAvatar: {
-    width: "28px",
-    height: "28px",
-    borderRadius: "999px",
-    background: "linear-gradient(135deg, #3525cd, #4f46e5)",
+    width: "32px",
+    height: "32px",
+    borderRadius: "10px",
+    background: "linear-gradient(135deg, #1e293b, #334155)",
     display: "grid",
     placeItems: "center",
     color: "#fff",
-    flexShrink: 0
+    flexShrink: 0,
+    boxShadow: "0 4px 10px rgba(0,0,0,0.1)"
   },
   messageBubble: {
-    maxWidth: "75%",
-    padding: "10px 14px",
-    borderRadius: "16px",
+    maxWidth: "80%",
+    padding: "12px 18px",
+    borderRadius: "18px",
     fontSize: "14px",
-    lineHeight: "1.6"
+    lineHeight: "1.6",
+    position: "relative",
+    transition: "all 0.3s ease"
   },
   userBubble: {
-    background: "linear-gradient(135deg, #3525cd, #4f46e5)",
-    color: "#fff",
+    background: "linear-gradient(135deg, #3b82f6, #2563eb)",
+    color: "#ffffff",
     borderBottomRightRadius: "4px",
-    boxShadow: "0 8px 22px rgba(53,37,205,0.16)"
+    boxShadow: "0 10px 25px rgba(37, 99, 235, 0.15)"
   },
   assistantBubble: {
-    background: "rgba(226,232,248,0.55)",
-    color: "#151c27",
+    background: "#ffffff",
+    color: "#1e293b",
     borderBottomLeftRadius: "4px",
-    border: "1px solid rgba(199,196,216,0.35)"
+    border: "1px solid #e2e8f0",
+    boxShadow: "0 4px 15px rgba(0,0,0,0.03)"
   },
   thinking: {
     fontSize: "12px",
-    color: "rgba(70,69,85,0.65)",
-    fontStyle: "italic",
-    marginBottom: "6px"
+    color: "#64748b",
+    display: "flex",
+    alignItems: "center",
+    marginBottom: "8px",
+    fontWeight: 500,
+    padding: "4px 8px",
+    background: "#f1f5f9",
+    borderRadius: "6px",
+    width: "fit-content"
+  },
+  imageContainer: {
+    position: "relative",
+    marginTop: "4px",
+    borderRadius: "12px",
+    overflow: "hidden",
+    border: "1px solid #e2e8f0"
+  },
+  image: {
+    width: "100%",
+    maxHeight: "400px",
+    display: "block",
+    objectFit: "cover"
+  },
+  downloadBtn: {
+    position: "absolute",
+    top: "10px",
+    right: "10px",
+    width: "32px",
+    height: "32px",
+    borderRadius: "8px",
+    background: "rgba(0,0,0,0.5)",
+    backdropFilter: "blur(4px)",
+    color: "#fff",
+    display: "grid",
+    placeItems: "center",
+    textDecoration: "none",
+    fontSize: "14px",
+    transition: "all 0.2s ease"
   },
   typingDots: {
     display: "flex",
@@ -29714,36 +29921,45 @@ var styles = {
   dot: {
     width: "6px",
     height: "6px",
-    borderRadius: "999px",
-    background: "rgba(53,37,205,0.45)",
-    display: "inline-block",
+    borderRadius: "50%",
+    background: "#94a3b8",
     animation: "dotPulse 1s ease-in-out infinite"
   },
   inputForm: {
+    padding: "20px 24px",
+    borderTop: "1px solid #e2e8f0",
+    background: "#fff"
+  },
+  inputWrapper: {
     display: "flex",
-    gap: "10px",
-    padding: "14px 16px",
-    borderTop: "1px solid rgba(199,196,216,0.35)",
-    background: "rgba(248,250,252,0.8)"
+    alignItems: "center",
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    borderRadius: "16px",
+    padding: "6px 6px 6px 16px",
+    transition: "all 0.2s ease",
+    boxShadow: "inset 0 2px 4px rgba(0,0,0,0.02)"
   },
   textInput: {
     flex: 1,
-    border: "1px solid rgba(199,196,216,0.5)",
-    borderRadius: "12px",
-    padding: "10px 14px",
-    fontSize: "14px",
+    border: "none",
+    background: "transparent",
+    padding: "10px 0",
+    fontSize: "15px",
+    color: "#1e293b",
     outline: "none"
   },
   sendBtn: {
+    width: "40px",
+    height: "40px",
+    borderRadius: "12px",
+    border: "none",
+    color: "#fff",
     display: "grid",
     placeItems: "center",
-    width: "42px",
-    height: "42px",
-    borderRadius: "12px",
-    padding: 0,
-    fontSize: "15px",
     cursor: "pointer",
-    flexShrink: 0
+    transition: "all 0.2s ease",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
   }
 };
 var root = document.getElementById("ai-chat-root");
@@ -29753,6 +29969,21 @@ if (root) {
     @keyframes dotPulse {
       0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
       40% { opacity: 1; transform: scale(1.2); }
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .message-area::-webkit-scrollbar {
+      width: 6px;
+    }
+    .message-area::-webkit-scrollbar-thumb {
+      background: #e2e8f0;
+      border-radius: 10px;
+    }
+    .input-wrapper:focus-within {
+      border-color: #3b82f6 !important;
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1) !important;
     }
   `;
   document.head.appendChild(styleEl);

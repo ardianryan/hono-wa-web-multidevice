@@ -124,7 +124,7 @@ import {
 
 import { isSessionAllowedForUser } from "./service/session.service.js";
 
-import { handleAiChat, getAiChatHistory } from "./service/ai.service.js";
+import { handleAiChat, handleAiImage, getAiChatHistory } from "./service/ai.service.js";
 
 router.get("/login", async (c) => {
   try {
@@ -2607,6 +2607,10 @@ router.post("/broadcast/:sessionId", requireApiKey, async (c) => {
 
 router.post("/api/ai/chat", requireAuth, async (c) => {
   return handleAiChat(c);
+});
+
+router.post("/api/ai/image", requireAuth, async (c) => {
+  return handleAiImage(c);
 });
 
 router.get("/admin/ai", requireAuth, async (c) => {

@@ -33,17 +33,17 @@ export const AiPage: FC<LayoutBase> = (props) => (
   >
     <PageHeader
       title="AI Assistant"
-      subtitle="Chat dengan AI assistant berbasis Gemini"
+      subtitle="Chat cerdas dan generate gambar artistik dengan AI"
     />
-    <div style="margin-top: 18px;">
+    <div style="margin-top: 24px;">
       <div id="ai-chat-root">
         <div
           class="card"
-          style="display:flex; align-items:center; justify-content:center; min-height:400px; gap:12px; flex-direction:column;"
+          style="display:flex; align-items:center; justify-content:center; min-height:500px; gap:16px; flex-direction:column; border-radius: 24px; border: 1px dashed #cbd5e1; background: #f8fafc;"
         >
-          <div class="spinner" />
-          <div class="muted" style="font-size: 13px;">
-            Memuat AI Chat...
+          <div class="spinner" style="width: 32px; height: 32px;" />
+          <div class="muted" style="font-size: 14px; font-weight: 500;">
+            Menyiapkan AI Assistant...
           </div>
         </div>
       </div>

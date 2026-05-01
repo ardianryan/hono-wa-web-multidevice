@@ -46,7 +46,14 @@ export const HistoryChatPrompt: FC<{ history: AiChatHistory[] }> = (props) => {
                       style="max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px;"
                       title={item.content}
                     >
-                      {item.content}
+                      {item.content.startsWith("[IMAGE]") ? (
+                        <span style="display: flex; align-items: center; gap: 8px; color: #8b5cf6; font-weight: 600;">
+                          <i class="fa-solid fa-image"></i>
+                          Generated Image
+                        </span>
+                      ) : (
+                        item.content
+                      )}
                     </div>
                   </td>
                   <td class="muted" style="font-size: 12px;">
