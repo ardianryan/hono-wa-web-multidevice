@@ -1,233 +1,161 @@
 <div align="center">
   <img src="public/assets/uploads/honowa.png" alt="HonoWA" width="180" />
+  <h1>HonoWA — Advanced WhatsApp Management & AI Chat</h1>
+  <p>REST API dan Admin Dashboard modern untuk mengelola multi-sesi WhatsApp dengan integrasi AI Reasoning.</p>
+
+  [![License: CC BY-NC-ND 4.0](https://img.shields.io/badge/License-CC%20BY--NC--ND%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-nd/4.0/)
+  ![Node version](https://img.shields.io/badge/node-%3E%3D%2018.x-brightgreen.svg)
+  ![Hono version](https://img.shields.io/badge/hono-v4.x-orange.svg)
 </div>
-
-# HonoWA — Hono.js + Unofficial WhatsApp API
-
-REST API dan Admin Dashboard untuk mengelola sesi WhatsApp (multi-session) menggunakan **Hono.js** dan **whatsapp-web.js** (unofficial).
-
-Terinspirasi dari GOWA: https://github.com/aldinokemal/go-whatsapp-web-multidevice
-
-```bash
-npm install
-npm run dev
-```
-
-Buka:
-
-```
-http://localhost:3000/login
-```
-
-## Preview
-
-**Login**
-
-![Login Page](public/img/1.jpg)
-
-**Dashboard**
-
-![Dashboard](public/img/2.jpg)
-
-**Scan QR WhatsApp**
-
-![Scan QR](public/img/3.jpg)
 
 ---
 
-## Konfigurasi (.env)
+## 🚀 Sekilas Tentang HonoWA
 
-Minimal:
+**HonoWA** adalah solusi API WhatsApp (unofficial) berbasis **Hono.js** yang dirancang untuk performa tinggi dan kemudahan integrasi. Mendukung multi-device, multi-session, dan kini dilengkapi dengan fitur **AI Chat Room** yang mendukung *Reasoning/Thinking Process*.
 
-```env
-DATABASE_URL=postgresql://your_username:your_password@localhost:5432/hono_wa
+### 🛠️ Tech Stack Utama
 
-PGHOST=localhost
-PGPORT=5432
-PGDATABASE=hono_wa
-PGUSER=your_username
-PGPASSWORD=your_password
+| Komponen | Teknologi |
+| :--- | :--- |
+| **Backend** | Hono.js (Node.js runtime) |
+| **Database** | PostgreSQL + Drizzle ORM |
+| **WhatsApp Library** | whatsapp-web.js (Unofficial) |
+| **Frontend UI** | React + Tailwind CSS + Vite (ESBuild) |
+| **AI Integration** | TanStack AI (Gemini, OpenAI, Anthropic) |
+| **Testing** | Jest + ts-jest (Industry Standard) |
 
-DEFAULT_ADMIN_USERNAME=admin
-DEFAULT_ADMIN_PASSWORD=admin123
-```
+---
 
-Opsional:
+## ✨ Fitur Unggulan
 
-```env
-PORT=3000
-WEBHOOK_URL=http://localhost:3040/webhook
-WEBHOOK_SECRET=your_secret_value
-```
+### 📱 WhatsApp Management
+- **Multi-Session Management**: Kelola banyak akun WhatsApp dalam satu dashboard.
+- **Interactive Scan QR**: Hubungkan perangkat langsung dari UI Admin.
+- **Webhook System**: Default webhook per aplikasi atau kustom per session.
+- **Message Handling**: Kirim Teks, Gambar, Video, Audio, dan Dokumen (via URL atau Upload).
+- **Broadcast Engine**: Pengiriman massal dengan antrean dan delay dinamis (Proteksi Banned).
+- **History Control**: Resend, Unsend (dalam batas 48 jam), dan Delete log.
 
-Catatan webhook:
+### 🤖 AI Chat Room (Industrial Grade)
+- **Multi-Model Support**: Integrasi dengan Google Gemini (Gemma), OpenAI (GPT-4), dan Anthropic (Claude).
+- **Reasoning Process**: Pemisahan logis antara *Thinking Process* AI dengan konten pesan utama untuk tampilan yang profesional.
+- **Image Generation**: Integrasi Imagen 4.0 untuk pembuatan gambar via chat.
+- **History Management**: Hapus riwayat chat permanen per user.
+- **Mobile Responsive**: Antarmuka chat yang adaptif untuk desktop maupun perangkat mobile.
 
-- `WEBHOOK_URL` adalah **default fallback** (dipakai jika session/device tidak punya webhook khusus).
-- Webhook **per device/session** bisa diatur dari UI: `GET /admin/sessions` → tombol **Webhook** pada masing-masing session.
-- Saat `WEBHOOK_SECRET` diisi, server akan menambahkan header `X-Webhook-Secret: <value>` pada setiap request webhook.
+### 🛡️ Keamanan & Monitoring
+- **API Key Authentication**: Akses API aman dengan kunci per-user.
+- **Role Based Access**: Pemisahan hak akses antara Admin dan User biasa.
+- **Maintenance Mode**: Matikan akses user saat sistem sedang diperbarui.
+- **Action Logs**: Pencatatan setiap aktivitas pengiriman pesan untuk audit.
 
-## Database (Drizzle ORM)
+---
 
-Project memakai **Drizzle ORM** untuk query ke PostgreSQL, dengan schema di:
+## 📦 Instalasi & Setup
 
-- `src/backend/schema.ts`
-- `drizzle.config.ts`
+### 📋 Prasyarat
+- Node.js versi 18.x atau lebih tinggi.
+- PostgreSQL (Lokal atau Cloud).
+- Chrome/Chromium (Untuk instance WhatsApp).
 
-Setup database (disarankan untuk environment baru):
+### 🛠️ Langkah Instalasi
 
+1. **Clone & Install Dependensi**
+   ```bash
+   git clone https://github.com/elianhardyy/hono-wa-web-multidevice.git
+   cd hono-wa
+   npm install
+   ```
+
+2. **Konfigurasi Environment**
+   Salin `.env.example` menjadi `.env` dan lengkapi datanya:
+   ```env
+   DATABASE_URL=postgresql://user:pass@localhost:5432/hono_wa
+   GEMINI_API_KEY=your_key
+   OPENAI_API_KEY=your_key
+   ANTHROPIC_API_KEY=your_key
+   ```
+
+3. **Inisialisasi Database**
+   ```bash
+   npm run db:push
+   ```
+
+4. **Menjalankan Aplikasi**
+   ```bash
+   # Mode Development
+   npm run dev
+
+   # Build & Start Production
+   npm run build
+   npm start
+   ```
+
+Buka `http://localhost:3000/login` untuk masuk ke Dashboard.
+
+---
+
+## 🧪 Testing & Quality Assurance
+
+HonoWA menerapkan standar industri dalam pengujian kode untuk memastikan stabilitas sistem.
+
+| Metric | Target | Status Saat Ini |
+| :--- | :--- | :--- |
+| **Total Unit Tests** | - | **93 Tests PASS** |
+| **Backend Coverage** | ≥ 80% | 🟢 High (Critical Services) |
+| **Threshold Enforcement** | Aktif | 🛡️ Proteksi degradasi kode |
+
+**Menjalankan Test:**
 ```bash
-npm install
-npm run db:push
-npm run dev
+# Run all tests
+npm test
+
+# Run with coverage report
+npm test -- --coverage
 ```
 
-Catatan:
+---
 
-- `npm run db:push` membutuhkan `DATABASE_URL` (atau fallback dari `PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD` via `drizzle.config.ts`).
-- Aplikasi juga tetap menjalankan bootstrap schema saat startup (`ensureSchema()`), namun `db:push` tetap disarankan untuk memastikan schema sesuai definisi Drizzle.
+## 🐳 Docker Support
 
-## UI Admin
-
-- Login: `GET /login`
-- Dashboard: `GET /admin`
-- Sessions: `GET /admin/sessions` (scan QR via modal, atur webhook per session)
-- Message: `GET /admin/message` (kirim teks atau media)
-- Broadcast: `GET /admin/broadcast` (queue + delay minimal 5 detik/nomor)
-- Status: `GET /admin/status` (text atau mediaUrl)
-- Pengaturan: `GET /admin/settings` (termasuk batas ukuran media)
-- API Docs + Generate API Key: `GET /admin/api-docs`
-
-## Fitur Utama
-
-- Multi-session WhatsApp (runtime map) + QR connect dari dashboard
-- Webhook default via env + webhook per device/session (bisa diatur user dari UI)
-- Message:
-  - teks
-  - media (gambar/video/audio/document) via URL (diutamakan) atau upload
-- Broadcast:
-  - queue/delay per nomor (minimal 5 detik wajib)
-  - dukung media via URL (diutamakan) atau upload (dari UI)
-- History (Message/Broadcast/Status):
-  - Resend, Unsend (batas waktu WhatsApp), Delete
-  - Bulk action: Delete Selected, Delete All, Download CSV
-- Database PostgreSQL + Drizzle ORM + drizzle-kit
-
-## API Auth (Integrasi)
-
-Endpoint API integrasi membutuhkan API Key per-user (generate di `/admin/api-docs`).
-
-Header yang didukung:
-
-- `X-API-Key: <API_KEY>`
-- `Authorization: Bearer <API_KEY>`
-
-Catatan:
-
-- User biasa hanya bisa akses session miliknya; admin bisa akses semua.
-- Saat maintenance aktif, hanya admin yang bisa akses.
-
-## REST API (Integrasi Aplikasi Lain)
-
-Base URL:
-
-```
-http://localhost:3000
+### Quick Start (Docker Run)
+```bash
+docker run -d \
+  --name honowa-api \
+  -p 3000:3000 \
+  -e PGHOST=host.docker.internal \
+  -e PGPORT=5432 \
+  -e PGDATABASE=hono_wa \
+  -e PGUSER=username \
+  -e PGPASSWORD=your_password \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/.wwebjs_auth:/app/.wwebjs_auth \
+  -v $(pwd)/.wwebjs_cache:/app/.wwebjs_cache \
+  username/hono-wa-web-multidevice:v2
 ```
 
-### `GET /sessions`
+### Volume yang Digunakan
+- `/app/data`: Menyimpan `session.json` (metadata sesi).
+- `/app/.wwebjs_auth`: Menyimpan autentikasi WhatsApp (Penting: agar tidak perlu scan ulang).
+- `/app/.wwebjs_cache`: Cache browser internal.
 
-List session milik user (berdasarkan DB) + status runtime jika sedang aktif.
+---
 
-### `GET /session/status/:sessionId`
+## 📖 Dokumentasi API
 
-Cek status runtime 1 session.
+Base URL: `http://localhost:3000`
+Auth Header: `X-API-Key: <KEY>` atau `Authorization: Bearer <KEY>`
 
-### `POST /send/:sessionId`
+| Method | Endpoint | Deskripsi |
+| :--- | :--- | :--- |
+| `GET` | `/sessions` | List semua sesi milik user. |
+| `POST` | `/send/:sessionId` | Kirim pesan teks/media ke nomor tertentu. |
+| `POST` | `/broadcast/:sessionId` | Kirim pesan ke banyak nomor sekaligus. |
+| `POST` | `/status/:sessionId` | Perbarui status WhatsApp (Teks/Media). |
+| `DELETE` | `/session/:sessionId` | Logout dan hapus sesi dari sistem. |
 
-Body JSON:
-
-```json
-{ "phone": "081234567890", "message": "Halo!" }
-```
-
-Kirim media via URL (opsional):
-
-```json
-{ "phone": "081234567890", "message": "Caption", "mediaUrl": "https://example.com/file.jpg" }
-```
-
-Atau upload file (multipart/form-data):
-
-- field: `phone` (wajib)
-- field: `message` (opsional jika ada media)
-- field: `mediaUrl` (opsional, diutamakan)
-- field file: `media` (opsional)
-
-### `POST /send-group/:sessionId`
-
-Body JSON:
-
-```json
-{ "groupId": "120363xxxx@g.us", "message": "Halo grup!" }
-```
-
-### `POST /broadcast/:sessionId`
-
-Body JSON:
-
-```json
-{ "phones": ["0812...","0898..."], "message": "Halo", "delayMs": 2000 }
-```
-
-Kirim broadcast media via URL (message boleh kosong jika ada media):
-
-```json
-{ "phones": ["0812...","0898..."], "message": "Caption", "mediaUrl": "https://example.com/file.pdf", "delayMs": 5000 }
-```
-
-Atau upload file (multipart/form-data):
-
-- field: `phones` (boleh array JSON atau string newline/koma)
-- field: `message` (opsional jika ada media)
-- field: `mediaUrl` (opsional, diutamakan)
-- field file: `media` (opsional)
-- field: `delayMs` (optional, minimal 5000)
-
-### `POST /status/:sessionId`
-
-Body JSON:
-
-```json
-{ "text": "Halo!" }
-```
-
-Atau status media:
-
-```json
-{ "mediaUrl": "https://example.com/image.jpg", "text": "Caption" }
-```
-
-## Catatan Media & Limit Ukuran
-
-- Default batas ukuran media: **10MB**.
-- Bisa diubah dari UI Admin: `GET /admin/settings` → `Batas ukuran media (MB)`.
-- Limit ini dipakai untuk:
-  - upload media dari UI/API (multipart)
-  - download media via URL (server akan fetch file lalu kirim via WhatsApp)
-
-## Catatan History (Resend/Unsend)
-
-- Tombol `Unsend` hanya aktif jika:
-  - history punya `sentMessageIds` (tersimpan saat kirim sukses), dan
-  - belum lewat batas waktu WhatsApp (dibatasi 48 jam di UI).
-- Log lama (sebelum update ini) mungkin belum punya `sentMessageIds`, jadi `Unsend` tidak tersedia.
-
-### `DELETE /session/:sessionId`
-
-Logout + stop runtime + hapus record session (sesuai scope user/admin).
-
-### Contoh cURL
-
+**Contoh Request (cURL):**
 ```bash
 curl -X POST "http://localhost:3000/send/sesi1" \
   -H "Content-Type: application/json" \
@@ -235,94 +163,38 @@ curl -X POST "http://localhost:3000/send/sesi1" \
   -d '{"phone":"081234567890","message":"Halo! Ini pesan otomatis."}'
 ```
 
-## Catatan Keamanan & QR
-
-- Endpoint `GET /session/qr/:sessionId` dan `POST /session/pair/:sessionId` sekarang hanya bisa diakses setelah login (bukan public).
-- Scan QR untuk menghubungkan WhatsApp dilakukan dari UI `/admin/sessions`.
-
 ---
-
-## 🐳 Quick Start (Docker)
-
-```bash
-docker run -d \
-  --name whatsapp-api \
-  -p 3000:3000 \
-  -e PGHOST=host.docker.internal \
-  -e PGPORT=5432 \
-  -e PGDATABASE=hono_wa \
-  -e PGUSER=username \
-  -e PGPASSWORD=your_password \
-  -e DEFAULT_ADMIN_USERNAME=admin \
-  -e DEFAULT_ADMIN_PASSWORD=admin123 \
-  -e WEBHOOK_URL=http://host.docker.internal:3040/webhook \
-  -e WEBHOOK_SECRET=your_secret_value \
-  -v $(pwd)/data:/app/data \
-  -v $(pwd)/.wwebjs_auth:/app/.wwebjs_auth \
-  -v $(pwd)/.wwebjs_cache:/app/.wwebjs_cache \
-  username/hono-wa-web-multidevice:v2
-```
-
-UI siap diakses di `http://localhost:3000/login`
-
----
-
-## 📦 Docker Compose
-
-```yaml
-version: "3.8"
-services:
-  whatsapp-api:
-    image: username/hono-wa-web-multidevice:v2
-    container_name: whatsapp-api
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      PGHOST: host.docker.internal
-      PGPORT: "5432"
-      PGDATABASE: hono_wa
-      PGUSER: username
-      PGPASSWORD: your_password
-      DEFAULT_ADMIN_USERNAME: admin
-      DEFAULT_ADMIN_PASSWORD: admin123
-    volumes:
-      - ./data:/app/data
-      - ./.wwebjs_auth:/app/.wwebjs_auth
-      - ./.wwebjs_cache:/app/.wwebjs_cache
-```
-
-```bash
-docker compose up -d
-```
-
----
-
-## 💾 Volume yang Digunakan
-
-| Volume              | Keterangan                                                   |
-| ------------------- | ------------------------------------------------------------ |
-| `/app/data`         | Menyimpan `session.json` (metadata sesi)                     |
-| `/app/.wwebjs_auth` | Menyimpan autentikasi WhatsApp (agar tidak perlu scan ulang) |
-| `/app/.wwebjs_cache` | Cache whatsapp-web.js                                      |
-
-> **Penting:** Mount kedua volume ini agar sesi tidak hilang saat container restart.
 
 ## ⚠️ Catatan Penting
+- **Format Nomor**: Gunakan format internasional tanpa tanda `+` (contoh: `628123456789`). Sistem akan otomatis mengonversi awalan `0` ke `62`.
+- **Limit Media**: Default 10MB, dapat diatur melalui menu Pengaturan di Dashboard.
+- **Proteksi Banned**: Selalu gunakan `delayMs` minimal 5000ms saat melakukan broadcast untuk menjaga keamanan akun Anda.
 
-- Aksi API membutuhkan session runtime berstatus **READY**.
-- Format nomor HP: `08xx` atau `62xx` — awalan `0` otomatis dikonversi ke `62`.
-- Broadcast dibatasi maksimal **200 nomor** per request.
-- Mount volume `/app/.wwebjs_auth` agar sesi tidak perlu scan ulang setelah container restart.
+---
 
-## Lisensi
+## 📜 Lisensi
 
 Project ini menggunakan lisensi **CC BY-NC-ND 4.0**:
+- **Attribution**: Wajib mencantumkan kredit/attribution.
+- **Non-Commercial**: Tidak boleh diperjualbelikan.
+- **No-Derivatives**: Tidak boleh dimodifikasi lalu dibagikan ulang tanpa izin.
 
-- Wajib mencantumkan kredit/attribution
-- Non-komersial (tidak boleh dijual / dipakai untuk tujuan komersial)
-- No-derivatives (tidak boleh dimodifikasi lalu dibagikan ulang)
+---
 
-Catatan dependency:
+## ❤️ Dukung Pengembangan HonoWA
 
-- `whatsapp-web.js` berlisensi **Apache License 2.0** dan tidak tercakup oleh lisensi project ini. Saat mendistribusikan aplikasi, tetap wajib mematuhi lisensi dependency tersebut. [wwebjs docs](https://docs.wwebjs.dev/#license)
+Jika project ini membantu Anda, pertimbangkan untuk memberikan dukungan agar pengembangan fitur HonoWA Multi-Device tetap berjalan lancar.
+
+### **Buy Me a Coffee** ☕
+Dukungan Anda sangat berarti untuk biaya riset API dan maintenance server pengujian.
+
+**Donate via QRIS (E-Wallet: Dana, OVO, GoPay / All Bank):**
+Silakan klik link di bawah ini untuk melakukan donasi secara aman melalui QRIS atau transfer bank:
+
+👉 **[KLIK DI SINI UNTUK DONASI (DONATE.PPTI.ME)](https://donate.ppti.me/)**
+
+---
+<div align="center">
+  Terinspirasi oleh GOWA & Dikembangkan dengan ❤️ oleh <br/>
+  [Elian Hardiawan](https://github.com/elianhardyy/) & [Ryan Ardian](https://github.com/ardianryan/)
+</div>

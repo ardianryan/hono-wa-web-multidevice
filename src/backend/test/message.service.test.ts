@@ -1,112 +1,119 @@
-import { describe, it, expect, jest } from '@jest/globals';
+import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 
-// Mock session manager before importing the service
+const mockSessionsMap = new Map<string, any>();
+const mockClient = { getMessageById: jest.fn<any>() };
+
 jest.unstable_mockModule('../session/session-manager.js', () => ({
-  sessions: new Map(),
-  getOrCreateSession: jest.fn(),
+  sessions: mockSessionsMap,
+  getOrCreateSession: jest.fn<any>(() => ({ status: 'READY', client: mockClient })),
 }));
 
-const { 
-  toHistoryActionType, 
-  historyBasePath, 
-  historyPathWithSession, 
-  collectMessageIds, 
-  isWithinUnsendWindow, 
-  jsonToCsv, 
-  UNSEND_WINDOW_MS 
+const {
+  toHistoryActionType, historyBasePath, historyPathWithSession,
+  collectMessageIds, isWithinUnsendWindow, jsonToCsv,
+  unsendByMessageIds, UNSEND_WINDOW_MS,
 } = await import('../service/message.service.js');
 
-describe('message.service', () => {
-  describe('toHistoryActionType', () => {
-    it('should return the correct type for valid inputs', () => {
-      expect(toHistoryActionType('broadcast')).toBe('broadcast');
-      expect(toHistoryActionType('status')).toBe('status');
-      expect(toHistoryActionType('message')).toBe('message');
-    });
+describe('message.service — toHistoryActionType', () => {
+  it('returns valid types unchanged', () => {
+    expect(toHistoryActionType('broadcast')).toBe('broadcast');
+    expect(toHistoryActionType('status')).toBe('status');
+    expect(toHistoryActionType('message')).toBe('message');
+  });
+  it('falls back to "message" for invalid input', () => {
+    expect(toHistoryActionType('invalid')).toBe('message');
+    expect(toHistoryActionType('')).toBe('message');
+    expect(toHistoryActionType('BROADCAST')).toBe('message');
+  });
+});
 
-    it('should fallback to message for invalid inputs', () => {
-      expect(toHistoryActionType('invalid')).toBe('message');
-      expect(toHistoryActionType('')).toBe('message');
-    });
+describe('message.service — historyBasePath', () => {
+  it('returns correct path for each type', () => {
+    expect(historyBasePath('broadcast')).toBe('/admin/broadcast');
+    expect(historyBasePath('status')).toBe('/admin/status');
+    expect(historyBasePath('message')).toBe('/admin/message');
+  });
+});
+
+describe('message.service — historyPathWithSession', () => {
+  it('returns base path when sessionId is absent or blank', () => {
+    expect(historyPathWithSession('broadcast')).toBe('/admin/broadcast');
+    expect(historyPathWithSession('message', '  ')).toBe('/admin/message');
+  });
+  it('appends encoded sessionId', () => {
+    expect(historyPathWithSession('broadcast', '123')).toBe('/admin/broadcast?sessionId=123');
+    expect(historyPathWithSession('message', 'a b')).toBe('/admin/message?sessionId=a%20b');
+  });
+});
+
+describe('message.service — collectMessageIds', () => {
+  it('collects direct sentMessageIds', () => {
+    expect(collectMessageIds({ sentMessageIds: ['id1', 'id2'] })).toEqual(['id1', 'id2']);
+  });
+  it('collects nested messageIds from sentItems', () => {
+    const payload = { sentItems: [{ messageIds: ['id1', 'id2'] }, { messageIds: ['id3'] }] };
+    expect(collectMessageIds(payload)).toEqual(['id1', 'id2', 'id3']);
+  });
+  it('deduplicates and filters empty values', () => {
+    const payload = { sentMessageIds: ['id1', '', 'id2'], sentItems: [{ messageIds: ['id2', 'id3'] }] };
+    expect(collectMessageIds(payload)).toEqual(['id1', 'id2', 'id3']);
+  });
+  it('returns empty array for empty/null payload', () => {
+    expect(collectMessageIds({})).toEqual([]);
+    expect(collectMessageIds(null)).toEqual([]);
+  });
+});
+
+describe('message.service — isWithinUnsendWindow', () => {
+  it('returns false for null/invalid dates', () => {
+    expect(isWithinUnsendWindow(null)).toBe(false);
+    expect(isWithinUnsendWindow('invalid')).toBe(false);
+    expect(isWithinUnsendWindow('')).toBe(false);
+  });
+  it('returns true for a recent timestamp', () => {
+    expect(isWithinUnsendWindow(new Date(Date.now() - 1000).toISOString())).toBe(true);
+  });
+  it('returns false for a timestamp beyond the window', () => {
+    expect(isWithinUnsendWindow(new Date(Date.now() - UNSEND_WINDOW_MS - 5000).toISOString())).toBe(false);
+  });
+});
+
+describe('message.service — jsonToCsv', () => {
+  it('returns header template for empty array', () => {
+    expect(jsonToCsv([])).toBe('id,createdAt,sessionId,target,message,status,error\r\n');
+  });
+  it('converts objects to CSV', () => {
+    const csv = jsonToCsv([{ id: '1', name: 'test' }]);
+    expect(csv).toContain('id,name');
+    expect(csv).toContain('1,test');
+  });
+  it('wraps values with commas in double quotes', () => {
+    expect(jsonToCsv([{ id: '1', v: 'a,b' }])).toContain('"a,b"');
+  });
+  it('escapes double-quotes inside values', () => {
+    expect(jsonToCsv([{ id: '1', v: 'say "hi"' }])).toContain('"say ""hi"""');
+  });
+});
+
+describe('message.service — unsendByMessageIds', () => {
+  beforeEach(() => { jest.clearAllMocks(); mockSessionsMap.clear(); });
+
+  it('throws if session is not READY', async () => {
+    mockSessionsMap.set('s1', { status: 'initializing', client: mockClient });
+    await expect(unsendByMessageIds('s1', ['id1'])).rejects.toThrow('not_ready:initializing');
   });
 
-  describe('historyBasePath', () => {
-    it('should return correct base paths', () => {
-      expect(historyBasePath('broadcast')).toBe('/admin/broadcast');
-      expect(historyBasePath('status')).toBe('/admin/status');
-      expect(historyBasePath('message')).toBe('/admin/message');
-    });
+  it('returns count of revoked messages, skipping missing ones', async () => {
+    const mockMsg = { delete: jest.fn<any>().mockResolvedValue(undefined) };
+    mockClient.getMessageById.mockResolvedValueOnce(null).mockResolvedValueOnce(mockMsg);
+    mockSessionsMap.set('s1', { status: 'ready', client: mockClient });
+    expect(await unsendByMessageIds('s1', ['id1', 'id2'])).toBe(1);
+    expect(mockMsg.delete).toHaveBeenCalledWith(true);
   });
 
-  describe('historyPathWithSession', () => {
-    it('should return base path if no session id', () => {
-      expect(historyPathWithSession('broadcast')).toBe('/admin/broadcast');
-      expect(historyPathWithSession('message', '  ')).toBe('/admin/message');
-    });
-
-    it('should append sessionId to path', () => {
-      expect(historyPathWithSession('broadcast', '123')).toBe('/admin/broadcast?sessionId=123');
-    });
-  });
-
-  describe('collectMessageIds', () => {
-    it('should collect direct sentMessageIds', () => {
-      const payload = { sentMessageIds: ['id1', 'id2'] };
-      expect(collectMessageIds(payload)).toEqual(['id1', 'id2']);
-    });
-
-    it('should collect nested messageIds from sentItems', () => {
-      const payload = {
-        sentItems: [
-          { messageIds: ['id1', 'id2'] },
-          { messageIds: ['id3'] },
-        ]
-      };
-      expect(collectMessageIds(payload)).toEqual(['id1', 'id2', 'id3']);
-    });
-
-    it('should combine direct and nested and filter duplicates and empty', () => {
-      const payload = {
-        sentMessageIds: ['id1', '', 'id2'],
-        sentItems: [
-          { messageIds: ['id2', 'id3'] },
-        ]
-      };
-      expect(collectMessageIds(payload)).toEqual(['id1', 'id2', 'id3']);
-    });
-  });
-
-  describe('isWithinUnsendWindow', () => {
-    it('should return false for invalid dates', () => {
-      expect(isWithinUnsendWindow(null)).toBe(false);
-      expect(isWithinUnsendWindow('invalid')).toBe(false);
-    });
-
-    it('should return true for recent dates', () => {
-      const recent = new Date(Date.now() - 1000).toISOString();
-      expect(isWithinUnsendWindow(recent)).toBe(true);
-    });
-
-    it('should return false for dates beyond window', () => {
-      const old = new Date(Date.now() - UNSEND_WINDOW_MS - 1000).toISOString();
-      expect(isWithinUnsendWindow(old)).toBe(false);
-    });
-  });
-
-  describe('jsonToCsv', () => {
-    it('should return empty template if no rows', () => {
-      expect(jsonToCsv([])).toBe('id,createdAt,sessionId,target,message,status,error\r\n');
-    });
-
-    it('should convert objects to csv', () => {
-      const rows = [
-        { id: '1', name: 'test' },
-        { id: '2', name: 'comma,value' }
-      ];
-      const csv = jsonToCsv(rows);
-      expect(csv).toContain('id,name');
-      expect(csv).toContain('1,test');
-      expect(csv).toContain('2,"comma,value"');
-    });
+  it('returns 0 when no messages found', async () => {
+    mockClient.getMessageById.mockResolvedValue(null);
+    mockSessionsMap.set('s1', { status: 'ready', client: mockClient });
+    expect(await unsendByMessageIds('s1', ['id1'])).toBe(0);
   });
 });
