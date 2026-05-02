@@ -197,6 +197,54 @@ export const ApiDocsPage: FC<
       </div>
 
       <div class="card" style="grid-column: span 12;">
+        <div class="label">Integrasi n8n</div>
+        <div
+          class="muted"
+          style="margin-top: 10px; font-size: 13px; line-height: 1.7;"
+        >
+          Gunakan custom node <b>n8n-nodes-honowa</b> untuk mengintegrasikan
+          WhatsApp dengan workflow n8n secara native.
+        </div>
+
+        <div style="margin-top: 14px;">
+          <div style="font-weight:900;">1. Instalasi</div>
+          <div
+            class="muted"
+            style="margin-top: 6px; font-size: 13px; line-height: 1.7;"
+          >
+            Di n8n: <b>Settings &gt; Community Nodes &gt; Install a node</b>
+            <br />
+            Masukkan: <code>n8n-nodes-honowa</code>
+          </div>
+        </div>
+
+        <div style="margin-top: 14px;">
+          <div style="font-weight:900;">2. Konfigurasi</div>
+          <div
+            class="muted"
+            style="margin-top: 6px; font-size: 13px; line-height: 1.7;"
+          >
+            Buat credential <b>HonoWA API</b> di n8n:
+            <br />- <b>Base URL</b>: URL server ini (contoh: <code>http://domain-anda.com</code>)
+            <br />- <b>API Key</b>: Gunakan API Key dari bagian atas halaman ini.
+          </div>
+        </div>
+
+        <div style="margin-top: 14px;">
+          <div style="font-weight:900;">3. Fitur n8n</div>
+          <div
+            class="muted"
+            style="margin-top: 6px; font-size: 13px; line-height: 1.7;"
+          >
+            - Dropdown otomatis untuk memilih Session aktif.
+            <br />- Support pengiriman Media (URL atau Binary/Upload).
+            <br />- Support Broadcast dengan delay otomatis.
+            <br />- AI Ready: Bisa digunakan sebagai tool oleh AI Agent n8n.
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="grid-column: span 12;">
         <div class="label">Contoh cURL (X-API-Key)</div>
         <div
           class="muted"

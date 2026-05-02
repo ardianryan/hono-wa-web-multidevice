@@ -2105,7 +2105,13 @@ router.post("/send/:sessionId", requireApiKey, async (c) => {
       );
     }
 
-    const chatId = `${formatPhone(phone)}@c.us`;
+    const formatted = formatPhone(phone);
+    const numberId = await sessionData.client.getNumberId(formatted);
+    if (!numberId) {
+      return c.json({ error: `Nomor '${phone}' tidak terdaftar di WhatsApp` }, 400);
+    }
+    const chatId = numberId._serialized;
+
     const sentMessageIds: string[] = [];
     if (loadedMedia) {
       const media = new MessageMedia(loadedMedia.mimetype, loadedMedia.dataB64, loadedMedia.filename);
