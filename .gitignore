@@ -41,3 +41,7 @@ public/assets/uploads/*
 
 #data
 data/
+
+# AI Context
+GEMINI.md
+node.md

@@ -41,17 +41,24 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: sessionId }),
     puppeteer: {
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-gpu",
-        "--disable-software-rasterizer",
-        "--disable-dev-shm-usage",
-        "--no-zygote",
-      ],
       headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      bypassCSP: true,
+      executablePath:
+        process.platform === "linux"
+          ? [
+              "/usr/bin/google-chrome",
+              "/usr/bin/google-chrome-stable",
+              "/usr/bin/chromium-browser",
+              "/usr/bin/chromium",
+            ].find((p) => require("fs").existsSync(p))
+          : undefined,
     },
+    authTimeoutMs: 60000,
   });
+
+  // Mencegah MaxListenersExceededWarning saat banyak request QR/pairing simultan
+  client.setMaxListeners(20);
 
   const sessionData: SessionData = {
     client,
@@ -98,17 +105,23 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
     console.log(`[${sessionId}] Terputus: ${reason}`);
     webhookSessionDisconnected(sessionId, reason);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       if (sessions.get(sessionId)?.status === SESSION_STATUS.DISCONNECTED) {
+        try {
+          await client.destroy();
+        } catch {}
         sessions.delete(sessionId);
         removeSessionFromFile(sessionId);
-        console.log(`[${sessionId}] Dihapus dari memori`);
+        console.log(`[${sessionId}] Dihapus dari memori & browser dimatikan`);
       }
     }, 30_000);
   });
 
-  client.on("auth_failure", (msg: string) => {
+  client.on("auth_failure", async (msg: string) => {
     console.error(`[${sessionId}] Auth gagal:`, msg);
+    try {
+      await client.destroy();
+    } catch {}
     sessions.delete(sessionId);
     removeSessionFromFile(sessionId);
   });

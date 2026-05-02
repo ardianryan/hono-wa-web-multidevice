@@ -557,8 +557,16 @@ router.post("/admin/profile", requireAuth, async (c) => {
   const newPassword2 = String((body as any).newPassword2 ?? "");
   const photoFile = (body as any).photo;
 
-  const photoUrl = await saveUploadedFile(photoFile, `user-${user.id}`);
-  if (photoFile && !photoUrl) {
+  const hasPhotoUpload =
+    photoFile &&
+    typeof photoFile.arrayBuffer === "function" &&
+    Number((photoFile as any).size ?? 0) > 0;
+
+  const photoUrl = hasPhotoUpload
+    ? await saveUploadedFile(photoFile, `user-${user.id}`)
+    : null;
+
+  if (hasPhotoUpload && !photoUrl) {
     return c.html(
       <ProfilePage
         appName={ui.appName}
@@ -884,19 +892,29 @@ router.get("/admin/session-qr/:sessionId", requireAuth, async (c) => {
   }
 
   let qrData = sessionData.qr ?? null;
-  if (!qrData) {
     qrData = await new Promise<string | null>((resolve) => {
-      const timeout = setTimeout(() => resolve(null), 25_000);
-      sessionData.client.once("qr", (qr: string) => {
-        clearTimeout(timeout);
+      const onQr = (qr: string) => {
+        cleanup();
         resolve(qr);
-      });
-      sessionData.client.once("ready", () => {
-        clearTimeout(timeout);
+      };
+      const onReady = () => {
+        cleanup();
         resolve(null);
-      });
+      };
+      const timeout = setTimeout(() => {
+        cleanup();
+        resolve(null);
+      }, 25_000);
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        sessionData.client.off("qr", onQr);
+        sessionData.client.off("ready", onReady);
+      };
+
+      sessionData.client.once("qr", onQr);
+      sessionData.client.once("ready", onReady);
     });
-  }
 
   if (!qrData && sessionData.status === SESSION_STATUS.READY) {
     return c.json({ status: "ready", sessionId });
@@ -1871,15 +1889,27 @@ router.get("/session/qr/:sessionId", requireAuth, async (c) => {
 
   if (!qrData) {
     qrData = await new Promise<string | null>((resolve) => {
-      const timeout = setTimeout(() => resolve(null), 35_000);
-      sessionData.client.once("qr", (qr: string) => {
-        clearTimeout(timeout);
+      const onQr = (qr: string) => {
+        cleanup();
         resolve(qr);
-      });
-      sessionData.client.once("ready", () => {
-        clearTimeout(timeout);
+      };
+      const onReady = () => {
+        cleanup();
         resolve(null);
-      });
+      };
+      const timeout = setTimeout(() => {
+        cleanup();
+        resolve(null);
+      }, 35_000);
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        sessionData.client.off("qr", onQr);
+        sessionData.client.off("ready", onReady);
+      };
+
+      sessionData.client.once("qr", onQr);
+      sessionData.client.once("ready", onReady);
     });
   }
 
@@ -2075,7 +2105,13 @@ router.post("/send/:sessionId", requireApiKey, async (c) => {
       );
     }
 
-    const chatId = `${formatPhone(phone)}@c.us`;
+    const formatted = formatPhone(phone);
+    const numberId = await sessionData.client.getNumberId(formatted);
+    if (!numberId) {
+      return c.json({ error: `Nomor '${phone}' tidak terdaftar di WhatsApp` }, 400);
+    }
+    const chatId = numberId._serialized;
+
     const sentMessageIds: string[] = [];
     if (loadedMedia) {
       const media = new MessageMedia(loadedMedia.mimetype, loadedMedia.dataB64, loadedMedia.filename);
