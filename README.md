@@ -1,5 +1,11 @@
 <div align="center">
   <img src="public/assets/uploads/honowa.png" alt="HonoWA" width="180" />
+  <br />
+  <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/">
+    <img src="https://img.shields.io/badge/License-CC%20BY--NC--ND%204.0-lightgrey.svg" alt="License: CC BY-NC-ND 4.0" />
+  </a>
+  <img src="https://img.shields.io/badge/node-%3E%3D%2018.x-brightgreen.svg" alt="Node version" />
+  <img src="https://img.shields.io/badge/hono-v4.x-orange.svg" alt="Hono version" />
 </div>
 
 # HonoWA — Hono.js + Unofficial WhatsApp API
