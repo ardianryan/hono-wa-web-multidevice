@@ -1,18 +1,30 @@
 <div align="center">
   <img src="public/assets/uploads/honowa.png" alt="HonoWA" width="180" />
-  <h1>HonoWA — Advanced WhatsApp Management & AI Chat</h1>
-  <p>REST API dan Admin Dashboard modern untuk mengelola multi-sesi WhatsApp dengan integrasi AI Reasoning.</p>
-
-  [![License: CC BY-NC-ND 4.0](https://img.shields.io/badge/License-CC%20BY--NC--ND%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-nd/4.0/)
-  ![Node version](https://img.shields.io/badge/node-%3E%3D%2018.x-brightgreen.svg)
-  ![Hono version](https://img.shields.io/badge/hono-v4.x-orange.svg)
 </div>
+
+# HonoWA — Hono.js + Unofficial WhatsApp API
+
+**Advanced REST API dan Admin Dashboard** modern untuk mengelola multi-sesi WhatsApp dengan integrasi AI berstandar industri (Reasoning & Thinking Process).
+
+## Preview
+
+**Login**
+
+![Login Page](public/img/1.jpg)
+
+**Dashboard**
+
+![Dashboard](public/img/2.jpg)
+
+**Scan QR WhatsApp**
+
+![Scan QR](public/img/3.jpg)
 
 ---
 
 ## 🚀 Sekilas Tentang HonoWA
 
-**HonoWA** adalah solusi API WhatsApp (unofficial) berbasis **Hono.js** yang dirancang untuk performa tinggi dan kemudahan integrasi. Mendukung multi-device, multi-session, dan kini dilengkapi dengan fitur **AI Chat Room** yang mendukung *Reasoning/Thinking Process*.
+**HonoWA** adalah ekosistem manajemen WhatsApp modern berbasis **Hono.js** yang mengedepankan performa, keamanan, dan kecerdasan buatan. Menggunakan arsitektur **Service Layer** yang bersih, HonoWA memudahkan integrasi API WhatsApp dengan model AI tercanggih (Gemini, GPT, Claude) serta dilengkapi dengan sistem pengujian otomatis (**Testing Suite**) yang komprehensif.
 
 ### 🛠️ Tech Stack Utama
 
@@ -196,5 +208,5 @@ Silakan klik link di bawah ini untuk melakukan donasi secara aman melalui QRIS a
 ---
 <div align="center">
   Terinspirasi oleh GOWA & Dikembangkan dengan ❤️ oleh <br/>
-  [Elian Hardiawan](https://github.com/elianhardyy/) & [Ryan Ardian](https://github.com/ardianryan/)
+  <a href="https://github.com/elianhardyy/">Elian Hardiawan</a> & <a href="https://github.com/ardianryan/">Ryan Ardian</a>
 </div>

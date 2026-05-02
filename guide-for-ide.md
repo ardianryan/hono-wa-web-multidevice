@@ -22,6 +22,12 @@ npm run dev
   - `src/backend/schema.ts` — definisi schema Drizzle (users, auth_sessions, wa_sessions, app_settings, action_logs)
   - `drizzle.config.ts` — konfigurasi drizzle-kit (schema path + koneksi DB)
   - `src/backend/session-manager.ts` — runtime WA sessions (Map), QR/ready status, broadcast queue
+  - `src/backend/service/` — Service Layer (Pusat Logika Bisnis):
+    - `ai.service.ts` — Logika AI (Gemma/Imagen), adapter, dan history DB.
+    - `message.service.ts` — Logika pengiriman pesan, unsend window, dan CSV export.
+    - `media.service.ts` — Penanganan media (URL fetcher, file upload, mime-type).
+    - `ui.service.ts` — Helper untuk UI (Gravatar, App Settings).
+    - `session.service.ts` — Manajemen database session.
   - `src/backend/webhook.ts` — pengiriman webhook (resolve URL per-session dari DB, fallback `WEBHOOK_URL`)
 - Frontend (Hono/JSX):
   - `src/frontend/pages/auth/login.tsx` — halaman login (meta + favicon)
@@ -39,16 +45,12 @@ npm run dev
 - Hindari menambah file baru kecuali benar-benar dibutuhkan.
 - Jangan menambahkan komentar di code kecuali diminta.
 
-## Fitur Terbaru (Ringkas)
-
-- Message & Broadcast mendukung media:
-  - URL (diutamakan) atau upload file
-  - tipe umum: image/video/audio/document
-- Batas ukuran media bisa diatur dari admin settings: `media_max_mb` (default 10MB)
-- Broadcast admin memakai queue + delay minimal 5 detik/nomor (wajib)
-- History (Message/Broadcast/Status):
-  - Resend, Unsend (dibatasi waktu WhatsApp), Delete
-  - Bulk action: Delete Selected, Delete All, Download CSV
+- AI Chat Room (Advanced):
+  - Mendukung `reasoning` (Thinking Process) yang disimpan di kolom terpisah.
+  - Multi-model: Gemini (Gemma), GPT, Claude, Imagen 4.0.
+  - UI Responsif: Header adaptif untuk mobile & desktop.
+- Testing Suite:
+  - 93+ unit tests (Jest) dengan coverage threshold di `jest.config.js`.
 
 ## Pola Pengembangan (Disarankan)
 
@@ -85,13 +87,20 @@ Contoh setting yang sudah ada:
 - UI pengaturan webhook ada di `GET /admin/sessions` (tombol **Webhook** per session).
 - Persist webhook via endpoint `POST /admin/sessions/webhook` (validasi session milik user, validasi URL http/https, simpan ke DB).
 
-### 5) Drizzle ORM (Database)
+### 5) AI Chat Room & Reasoning Logic
 
-- Schema Drizzle: `src/backend/schema.ts`
-- Konfigurasi drizzle-kit: `drizzle.config.ts`
-- Apply schema ke DB (disarankan untuk setup baru): `npm run db:push`
-- Koneksi DB:
-  - Prioritas: `DATABASE_URL`
+- Database: Tabel `ai_chats` memiliki kolom `reasoning` (TEXT, nullable).
+- Pola Simpan: Gunakan `saveAiChatMessage` di `ai.service.ts`. Simpan proses berpikir AI ke kolom `reasoning`.
+- UI: Komponen `AiChatRoom` mem-parsing data `reasoning` untuk ditampilkan dalam blok terpisah (Thinking Process).
+- Model: `gemma-4-31b-it` (Teks), `imagen-4.0-fast-generate-001` (Gambar).
+
+### 6) Testing Suite (Industrial Standard)
+
+- Semua logika bisnis WAJIB ditest di `src/backend/test/`.
+- Perintah: `npm test` (run) atau `npm test -- --coverage` (report).
+- File test utama: `ai.service.test.ts`, `message.service.test.ts`, `media.service.test.ts`, `auth.test.ts`.
+
+### 7) Drizzle ORM (Database)
   - Fallback: `PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD`
 
 Catatan Docker:
