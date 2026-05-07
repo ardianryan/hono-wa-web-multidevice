@@ -105,7 +105,13 @@ export const SessionsPage: FC<
                   <td>
                     <div class="webhookBadge">
                       <i class="fa-solid fa-globe"></i>
-                      <span>{s.webhookUrl ? s.webhookUrl : "(default)"}</span>
+                      <span>
+                        {s.webhookUrl
+                          ? s.webhookUrl.includes(",")
+                            ? `${s.webhookUrl.split(",").length} URLs`
+                            : s.webhookUrl
+                          : "(tidak ada)"}
+                      </span>
                     </div>
                   </td>
                   <td>
@@ -205,14 +211,12 @@ export const SessionsPage: FC<
         <form method="post" action="/admin/sessions/webhook" id="webhookForm">
           <input type="hidden" name="sessionId" id="webhookSessionId" />
           <div class="formRow">
-            <div class="label">Webhook URL</div>
-            <input
-              class="input"
-              id="webhookUrlInput"
-              name="webhookUrl"
-              type="url"
-              placeholder="https://example.com/webhook"
-            />
+            <div class="label">Webhook URLs</div>
+            <div id="webhookUrlList" style="display:flex; flex-direction:column; gap:8px;"></div>
+            <button type="button" class="btn" id="addWebhookUrlBtn" style="margin-top:8px; font-size:12px; width:fit-content;">
+              <i class="fa-solid fa-plus" style="margin-right:4px;"></i> Tambah URL
+            </button>
+            <input type="hidden" name="webhookUrl" id="webhookUrlInput" />
           </div>
           <div
             class="muted"
@@ -220,7 +224,7 @@ export const SessionsPage: FC<
           >
             Isi URL webhook (contoh: n8n, Make, Zapier, custom endpoint) untuk
             menerima event dari device ini. Kosongkan untuk menonaktifkan
-            webhook untuk device ini (atau pakai default server jika tersedia).
+            webhook untuk device ini.
           </div>
           <div class="btnRow" style="margin-top: 12px;">
             <button class="btn primary" type="submit">
@@ -352,19 +356,71 @@ export const SessionsPage: FC<
   const closeBottom = document.getElementById("webhookModalCloseBottom");
   const openButtons = document.querySelectorAll(".js-open-webhook");
   const sessionIdInput = document.getElementById("webhookSessionId");
-  const urlInput = document.getElementById("webhookUrlInput");
+  
+  const listContainer = document.getElementById("webhookUrlList");
+  const addBtn = document.getElementById("addWebhookUrlBtn");
+  const form = document.getElementById("webhookForm");
+  const hiddenInput = document.getElementById("webhookUrlInput");
 
   const closeModal = () => {
     modal.classList.remove("show");
   };
 
+  const renderInput = (val) => {
+    const row = document.createElement("div");
+    row.style.display = "flex";
+    row.style.gap = "8px";
+    
+    const inp = document.createElement("input");
+    inp.className = "input";
+    inp.type = "url";
+    inp.placeholder = "https://...";
+    inp.style.flex = "1";
+    inp.value = val || "";
+    
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn danger js-remove-url";
+    btn.title = "Hapus";
+    btn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+    
+    row.appendChild(inp);
+    row.appendChild(btn);
+    listContainer.appendChild(row);
+  };
+
+  addBtn.addEventListener("click", () => {
+    renderInput("");
+  });
+
+  listContainer.addEventListener("click", (e) => {
+    const btn = e.target.closest(".js-remove-url");
+    if (btn) {
+      btn.parentElement.remove();
+    }
+  });
+
+  form.addEventListener("submit", () => {
+    const inputs = listContainer.querySelectorAll("input");
+    const urls = [];
+    inputs.forEach(inp => {
+      if (inp.value.trim()) urls.push(inp.value.trim());
+    });
+    hiddenInput.value = urls.join(",");
+  });
+
   const openModal = (sessionId, webhookUrl) => {
     if (!sessionId) return;
     title.textContent = "Webhook - " + sessionId;
     sessionIdInput.value = sessionId;
-    urlInput.value = webhookUrl || "";
+    listContainer.innerHTML = "";
+    if (webhookUrl) {
+      const urls = webhookUrl.split(",");
+      urls.forEach(u => renderInput(u));
+    } else {
+      renderInput("");
+    }
     modal.classList.add("show");
-    urlInput.focus();
   };
 
   openButtons.forEach((btn) => {

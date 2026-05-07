@@ -40,15 +40,21 @@ RUN apt-get update && apt-get install -y \
 ENV NODE_ENV=production \
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
-    WEBHOOK_URL=http://localhost:3040/webhook
+    DATABASE_URL=
 
 COPY package*.json ./
-RUN npm ci --omit=dev
+
+RUN npm ci --include=dev
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/drizzle ./drizzle
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 
-EXPOSE 3000
+# RUN npm ci --omit=dev
+
+
+EXPOSE 4000
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["npm", "start"]

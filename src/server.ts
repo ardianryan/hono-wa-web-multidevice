@@ -5,7 +5,7 @@ import backendApp from "./backend/app.js";
 import frontendApp from "./frontend/app.js";
 import { restoreSessionsFromFile } from "./backend/session/session-manager.js";
 import { ensureDefaultAdmin } from "./backend/utils/auth.js";
-import { ensureDefaultSettings, ensureSchema } from "./backend/config/db.js";
+import { ensureDefaultSettings } from "./backend/config/db.js";
 
 const app = new Hono();
 
@@ -14,7 +14,6 @@ app.route("/", frontendApp);
 app.route("/", backendApp);
 
 try {
-  await ensureSchema();
   await ensureDefaultSettings();
   await ensureDefaultAdmin();
 } catch (err) {
@@ -23,21 +22,23 @@ try {
 
 restoreSessionsFromFile();
 
-const port = process.env.PORT ? Number(process.env.PORT) : 3000;
+const port = process.env.PORT ? Number(process.env.PORT) : 4000;
 
-serve({ fetch: app.fetch, port }, (info) => {
+
+
+serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, (info) => {
   const webhookUrl = process.env.WEBHOOK_URL ?? "(tidak dikonfigurasi)";
   console.log(`
 ╔════════════════════════════════════════════╗
 ║   HonoWA — Admin + API Key                 ║
 ║   http://localhost:${info.port}            ║
 ╠════════════════════════════════════════════╣
-║  UI                                         ║
+║  UI                                        ║
 ║  GET    /login            → Login          ║
 ║  GET    /admin            → Dashboard      ║
 ║  GET    /admin/api-docs   → API Docs       ║
 ║                                            ║
-║  API (butuh X-API-Key / Bearer)             ║
+║  API (butuh X-API-Key / Bearer)            ║
 ║  GET    /sessions         → List session   ║
 ║  GET    /session/status/:id → Status       ║
 ║  POST   /send/:id         → Send message   ║

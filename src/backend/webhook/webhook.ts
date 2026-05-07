@@ -21,24 +21,23 @@ export type WebhookPayload = {
   data: Record<string, any>;
 };
 
-const normalizeWebhookUrl = (value: string | null | undefined): string | null => {
+const normalizeWebhookUrl = (value: string | null | undefined): string[] => {
   const v = String(value ?? "").trim();
-  return v ? v : null;
+  if (!v) return [];
+  return v.split(/[\n,]/).map((u) => u.trim()).filter(Boolean);
 };
 
-type WebhookCacheEntry = { url: string | null; expiresAt: number };
+type WebhookCacheEntry = { urls: string[]; expiresAt: number };
 const webhookUrlCache = new Map<string, WebhookCacheEntry>();
 
 export const invalidateWebhookCache = (sessionId: string) => {
   webhookUrlCache.delete(sessionId);
 };
 
-const getWebhookUrlForSession = async (sessionId: string): Promise<string | null> => {
+const getWebhookUrlForSession = async (sessionId: string): Promise<string[]> => {
   const now = Date.now();
   const cached = webhookUrlCache.get(sessionId);
-  if (cached && cached.expiresAt > now) return cached.url;
-
-  const fallback = normalizeWebhookUrl(process.env.WEBHOOK_URL);
+  if (cached && cached.expiresAt > now) return cached.urls;
 
   try {
     const result = await ormDb
@@ -46,48 +45,57 @@ const getWebhookUrlForSession = async (sessionId: string): Promise<string | null
       .from(waSessions)
       .where(eq(waSessions.sessionId, sessionId))
       .limit(1);
-    const url = normalizeWebhookUrl(result[0]?.webhookUrl) ?? fallback;
-    webhookUrlCache.set(sessionId, { url, expiresAt: now + 30_000 });
-    return url;
+    
+    let urls: string[] = [];
+    if (result.length > 0 && result[0].webhookUrl) {
+      urls = normalizeWebhookUrl(result[0].webhookUrl);
+    }
+
+    webhookUrlCache.set(sessionId, { urls, expiresAt: now + 30_000 });
+    return urls;
   } catch {
-    webhookUrlCache.set(sessionId, { url: fallback, expiresAt: now + 10_000 });
-    return fallback;
+    webhookUrlCache.set(sessionId, { urls: [], expiresAt: now + 10_000 });
+    return [];
   }
 };
 
 export const sendWebhook = async (payload: WebhookPayload): Promise<void> => {
-  const url = await getWebhookUrlForSession(payload.sessionId);
-  if (!url) return;
+  const urls = await getWebhookUrlForSession(payload.sessionId);
+  if (urls.length === 0) return;
 
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(process.env.WEBHOOK_SECRET
-          ? { "X-Webhook-Secret": process.env.WEBHOOK_SECRET }
-          : {}),
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10_000),
-    });
+  const promises = urls.map(async (url) => {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(process.env.WEBHOOK_SECRET
+            ? { "X-Webhook-Secret": process.env.WEBHOOK_SECRET }
+            : {}),
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10_000),
+      });
 
-    if (!res.ok) {
-      console.warn(
-        `[webhook] Pengiriman gagal — event: ${payload.event}, ` +
-          `session: ${payload.sessionId}, HTTP ${res.status}`,
-      );
-    } else {
-      console.log(
-        `[webhook] ✓ Terkirim — event: ${payload.event}, session: ${payload.sessionId}`,
+      if (!res.ok) {
+        console.warn(
+          `[webhook] Pengiriman gagal ke ${url} — event: ${payload.event}, ` +
+            `session: ${payload.sessionId}, HTTP ${res.status}`,
+        );
+      } else {
+        console.log(
+          `[webhook] ✓ Terkirim ke ${url} — event: ${payload.event}, session: ${payload.sessionId}`,
+        );
+      }
+    } catch (err: any) {
+      console.error(
+        `[webhook] Error saat kirim ke ${url} — event: ${payload.event}:`,
+        err?.message ?? err,
       );
     }
-  } catch (err: any) {
-    console.error(
-      `[webhook] Error saat kirim — event: ${payload.event}:`,
-      err?.message ?? err,
-    );
-  }
+  });
+
+  await Promise.allSettled(promises);
 };
 
 export const webhookMessageReceived = (
