@@ -9,8 +9,8 @@ npm install
 npm run dev
 ```
 
-- UI: `http://localhost:3000/login`
-- Admin: `http://localhost:3000/admin`
+- UI: `http://localhost:4000/login`
+- Admin: `http://localhost:4000/admin`
 
 ## Struktur Penting
 
@@ -128,7 +128,7 @@ Catatan media Message/Broadcast:
 ## Troubleshooting Cepat
 
 - DB error: pastikan `.env` benar (`PGHOST/PGDATABASE/PGUSER/PGPASSWORD`) dan Postgres running.
-- Port bentrok: cek proses lain di 3000.
+- Port bentrok: cek proses lain di 4000.
 - QR tidak muncul: cek status session di halaman Sessions dan cek log server.
 - Upload tidak muncul: pastikan file ada di `public/assets/uploads` dan URL diawali `/assets/uploads/`.
 - Unsend tidak aktif: cek `sentMessageIds` pada history (log lama tidak punya) atau sudah lewat window waktu WhatsApp.

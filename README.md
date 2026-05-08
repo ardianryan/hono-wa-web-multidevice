@@ -10,6 +10,17 @@
 
 # HonoWA — Hono.js + Unofficial WhatsApp API
 
+<div align="center">
+  <a href="https://railway.app/new/template?template=https://github.com/ardianryan/hono-wa-web-multidevice">
+    <img src="https://railway.app/button.svg" alt="Deploy on Railway" />
+  </a>
+  &nbsp;
+  <a href="https://vercel.com/new/clone?repository-url=https://github.com/ardianryan/hono-wa-web-multidevice">
+    <img src="https://vercel.com/button" alt="Deploy with Vercel" />
+  </a>
+</div>
+
+
 **Advanced REST API dan Admin Dashboard** modern untuk mengelola multi-sesi WhatsApp dengan integrasi AI berstandar industri (Reasoning & Thinking Process).
 
 ## Preview
@@ -122,7 +133,7 @@ npm run db:push
   npm start
   ```
 
-Buka `http://<IP_SERVER_ANDA>:3000/login` untuk masuk ke Dashboard.
+Buka `http://<IP_SERVER_ANDA>:4000/login` untuk masuk ke Dashboard.
 
 ---
 
@@ -147,16 +158,26 @@ npm test -- --coverage
 
 ---
 
-## 🐳 Opsi 2: Instalasi Menggunakan Docker
+## 🐳 Opsi 2: Instalasi Menggunakan Docker (Recommended)
 
-Bagi Anda yang menyukai environment terisolasi tanpa perlu pusing memikirkan dependensi OS, Node.js, atau instalasi browser, HonoWA menyediakan Docker image siap pakai.
+Bagi Anda yang menyukai environment terisolasi tanpa perlu pusing memikirkan dependensi OS, Node.js, atau instalasi browser, HonoWA menyediakan metode instalasi otomatis.
 
-### Quick Start (Docker Run)
+### One-Line Installation (VPS / Local)
+Cukup jalankan satu perintah ini di terminal Anda untuk mengunduh, konfigurasi, dan menjalankan HonoWA beserta database PostgreSQL secara otomatis:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/ardianryan/hono-wa-web-multidevice/main/setup.sh | bash
+```
+
+---
+
+### Manual Docker Setup
+Jika Anda ingin melakukan setup secara manual menggunakan Docker Run:
 ```bash
 docker run -d \
   --name honowa-api \
   --restart unless-stopped \
-  -p 3000:3000 \
+  -p 4000:4000 \
   -e PGHOST=host.docker.internal \
   -e PGPORT=5432 \
   -e PGDATABASE=hono_wa \
@@ -178,9 +199,20 @@ Pastikan Anda menghubungkan (mount) volume berikut agar data Anda tidak hilang s
 
 ---
 
+## 🚀 Opsi 3: Easy Install via Coolify (Self-Hosted)
+
+Coolify adalah alternatif open-source untuk Railway/Heroku. HonoWA sangat mudah dideploy di Coolify:
+
+1.  **New Service**: Pilih "Docker Compose" di Coolify dashboard.
+2.  **Paste Config**: Gunakan konten dari `docker-compose.yml` di repository ini.
+3.  **Environment**: Pastikan `DATABASE_URL` dan API Key lainnya sudah diisi di tab Environment Variables.
+4.  **Persistent Storage**: Coolify akan otomatis mendeteksi volume yang didefinisikan di `docker-compose.yml`.
+
+---
+
 ## 📖 Dokumentasi API
 
-Base URL: `http://localhost:3000`
+Base URL: `http://localhost:4000`
 Auth Header: `X-API-Key: <KEY>` atau `Authorization: Bearer <KEY>`
 
 | Method | Endpoint | Deskripsi |
@@ -193,7 +225,7 @@ Auth Header: `X-API-Key: <KEY>` atau `Authorization: Bearer <KEY>`
 
 **Contoh Request (cURL):**
 ```bash
-curl -X POST "http://localhost:3000/send/sesi1" \
+curl -X POST "http://localhost:4000/send/sesi1" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: <API_KEY_ANDA>" \
   -d '{"phone":"081234567890","message":"Halo! Ini pesan otomatis."}'
