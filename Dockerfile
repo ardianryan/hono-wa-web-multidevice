@@ -58,7 +58,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 
-RUN mkdir -p /app/.wwebjs_auth /app/.wwebjs_cache && \
+RUN mkdir -p /app/.wwebjs_auth /app/.wwebjs_cache /app/data /app/public/assets/uploads && \
     chown -R honowa:honowa /app
 
 USER honowa
@@ -69,4 +69,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:4000/login || exit 1
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
-CMD ["node", "dist/index.js"]
+CMD ["sh", "-c", "find .wwebjs_auth -name 'SingletonLock' -exec rm -f {} + && node dist/index.js"]

@@ -1,5 +1,6 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { eq } from "drizzle-orm";
 import { actionLogs, aiChats, appSettings, authSessions, users, waSessions } from "./schema.js";
 
@@ -19,6 +20,12 @@ const pool = new Pool({
 export const getDb = () => pool;
 export const db = drizzle(pool);
 export const appSchema = { appSettings, users, authSessions, waSessions, actionLogs, aiChats };
+
+export const migrateDb = async () => {
+  console.log("[db] checking migrations...");
+  await migrate(db, { migrationsFolder: "./drizzle" });
+  console.log("[db] migrations applied.");
+};
 
 export const getSetting = async (key: string): Promise<string | null> => {
   const result = await db

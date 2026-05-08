@@ -224,7 +224,7 @@ router.post("/login", async (c) => {
   setCookie(c, "sid", sid, {
     httpOnly: true,
     sameSite: "Lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.COOKIE_SECURE === "true",
     path: "/",
   });
   return c.redirect(withToast("/admin", "Login berhasil", "success"));
@@ -312,7 +312,7 @@ router.post("/admin/api-docs/api-key/rotate", requireAuth, async (c) => {
   setCookie(c, "flash_api_key", newApiKey, {
     httpOnly: true,
     sameSite: "Lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.COOKIE_SECURE === "true",
     path: "/admin/api-docs",
     maxAge: 60,
   });
@@ -1966,38 +1966,7 @@ router.get("/session/qr/:sessionId", requireAuth, async (c) => {
   );
 });
 
-router.post("/session/pair/:sessionId", requireAuth, async (c) => {
-  try {
-    const sessionId = c.req.param("sessionId");
-    const body = await c.req.json();
-    const phone = body.phone;
 
-    if (!phone) return c.json({ error: 'Field "phone" wajib diisi' }, 400);
-
-    const sessionData = getOrCreateSession(sessionId);
-    const formattedPhone = formatPhone(phone);
-
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    const pairingCode =
-      await sessionData.client.requestPairingCode(formattedPhone);
-    sessionData.status = SESSION_STATUS.PENDING_PAIRING;
-
-    return c.json({
-      success: true,
-      sessionId,
-      pairingCode,
-      message:
-        "Buka WhatsApp > Perangkat Tertaut > Tautkan Perangkat, lalu masukkan kode ini.",
-    });
-  } catch (error: any) {
-    console.error(error);
-    return c.json(
-      { error: "Gagal membuat pairing code", details: error.toString() },
-      500,
-    );
-  }
-});
 
 router.get("/session/status/:sessionId", requireApiKey, async (c) => {
   const user = c.get("authUser");
