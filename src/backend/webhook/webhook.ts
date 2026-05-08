@@ -15,10 +15,9 @@ export type WebhookEvent =
   | "session.disconnected";
 
 export type WebhookPayload = {
-  event: WebhookEvent;
-  sessionId: string;
-  timestamp: string;
-  data: Record<string, any>;
+  device_id: string;
+  event: string;
+  payload: Record<string, any>;
 };
 
 const normalizeWebhookUrl = (value: string | null | undefined): string[] => {
@@ -59,8 +58,8 @@ const getWebhookUrlForSession = async (sessionId: string): Promise<string[]> => 
   }
 };
 
-export const sendWebhook = async (payload: WebhookPayload): Promise<void> => {
-  const urls = await getWebhookUrlForSession(payload.sessionId);
+export const sendWebhook = async (sessionId: string, payload: WebhookPayload): Promise<void> => {
+  const urls = await getWebhookUrlForSession(sessionId);
   if (urls.length === 0) return;
 
   const promises = urls.map(async (url) => {
@@ -80,11 +79,11 @@ export const sendWebhook = async (payload: WebhookPayload): Promise<void> => {
       if (!res.ok) {
         console.warn(
           `[webhook] Pengiriman gagal ke ${url} — event: ${payload.event}, ` +
-            `session: ${payload.sessionId}, HTTP ${res.status}`,
+            `session: ${sessionId}, HTTP ${res.status}`,
         );
       } else {
         console.log(
-          `[webhook] ✓ Terkirim ke ${url} — event: ${payload.event}, session: ${payload.sessionId}`,
+          `[webhook] ✓ Terkirim ke ${url} — event: ${payload.event}, session: ${sessionId}`,
         );
       }
     } catch (err: any) {
@@ -100,8 +99,10 @@ export const sendWebhook = async (payload: WebhookPayload): Promise<void> => {
 
 export const webhookMessageReceived = (
   sessionId: string,
+  deviceId: string,
   msg: {
     from: string;
+    from_name: string;
     to: string;
     body: string;
     type: string;
@@ -109,35 +110,40 @@ export const webhookMessageReceived = (
     groupId?: string;
     timestamp: number;
     messageId: string;
+    media?: { caption?: string; path?: string };
   },
 ) =>
-  sendWebhook({
-    event: "message.received",
-    sessionId,
-    timestamp: new Date().toISOString(),
-    data: msg,
+  sendWebhook(sessionId, {
+    device_id: deviceId,
+    event: "message",
+    payload: {
+      id: msg.messageId,
+      from: msg.from,
+      from_name: msg.from_name,
+      chat_id: msg.isGroup ? msg.groupId : msg.from,
+      body: msg.body,
+      timestamp: msg.timestamp,
+      ...(msg.media ? { [msg.type]: msg.media } : {}),
+    },
   });
 
-export const webhookSessionReady = (sessionId: string) =>
-  sendWebhook({
+export const webhookSessionReady = (sessionId: string, deviceId: string) =>
+  sendWebhook(sessionId, {
+    device_id: deviceId,
     event: "session.ready",
-    sessionId,
-    timestamp: new Date().toISOString(),
-    data: { status: "ready" },
+    payload: { status: "ready" },
   });
 
 export const webhookSessionQR = (sessionId: string, qr: string) =>
-  sendWebhook({
+  sendWebhook(sessionId, {
+    device_id: sessionId, // QR event doesn't have a device JID yet
     event: "session.qr",
-    sessionId,
-    timestamp: new Date().toISOString(),
-    data: { qr },
+    payload: { qr },
   });
 
-export const webhookSessionDisconnected = (sessionId: string, reason: string) =>
-  sendWebhook({
+export const webhookSessionDisconnected = (sessionId: string, deviceId: string, reason: string) =>
+  sendWebhook(sessionId, {
+    device_id: deviceId,
     event: "session.disconnected",
-    sessionId,
-    timestamp: new Date().toISOString(),
-    data: { reason },
+    payload: { reason },
   });

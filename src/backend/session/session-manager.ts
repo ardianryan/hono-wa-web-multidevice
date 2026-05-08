@@ -82,28 +82,43 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
     sessionData.qr = undefined;
     persistSession(sessionId, sessionData);
     console.log(`[${sessionId}] SIAP digunakan`);
-    webhookSessionReady(sessionId);
+    const deviceId = client.info?.wid?._serialized ?? sessionId;
+    webhookSessionReady(sessionId, deviceId);
   });
 
   client.on("message", async (msg: any) => {
     const isGroup = msg.from.endsWith("@g.us");
-    webhookMessageReceived(sessionId, {
+    const deviceId = client.info?.wid?._serialized ?? sessionId;
+    const contact = await msg.getContact();
+    const fromName = contact.pushname || contact.name || msg._data?.notifyName || "Unknown";
+
+    // Resolve LID to traditional phone JID (@c.us)
+    const senderJid = contact.id._serialized.includes("@c.us")
+      ? contact.id._serialized
+      : contact.number
+        ? `${contact.number}@c.us`
+        : msg.from;
+
+    webhookMessageReceived(sessionId, deviceId, {
       messageId: msg.id._serialized,
-      from: msg.from,
+      from: senderJid,
+      from_name: fromName,
       to: msg.to,
       body: msg.body,
       type: msg.type,
       isGroup,
       groupId: isGroup ? msg.from : undefined,
       timestamp: msg.timestamp,
+      ...(msg.hasMedia ? { media: { caption: msg.body } } : {}),
     });
   });
 
   client.on("disconnected", (reason: string) => {
+    const deviceId = client.info?.wid?._serialized ?? sessionId;
     sessionData.status = SESSION_STATUS.DISCONNECTED;
     persistSession(sessionId, sessionData);
     console.log(`[${sessionId}] Terputus: ${reason}`);
-    webhookSessionDisconnected(sessionId, reason);
+    webhookSessionDisconnected(sessionId, deviceId, reason);
 
     setTimeout(async () => {
       if (sessions.get(sessionId)?.status === SESSION_STATUS.DISCONNECTED) {
