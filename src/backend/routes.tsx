@@ -31,6 +31,7 @@ import {
   enqueueBroadcastJob,
   getOrCreateSession,
   formatPhone,
+  requestSessionPairingCode,
 } from "./session/session-manager.js";
 import { removeSessionFromFile } from "./session/session-store.js";
 import { SESSION_STATUS, type BroadcastResult } from "./utils/types.js";
@@ -825,6 +826,29 @@ router.post("/admin/sessions/webhook", requireAuth, async (c) => {
 
   invalidateWebhookCache(sessionId);
   return c.redirect(withToast("/admin/sessions", "Webhook tersimpan", "success"));
+});
+
+router.post("/admin/session-pairing-code/:sessionId", requireAuth, async (c) => {
+  const user = c.get("authUser");
+  const sessionId = c.req.param("sessionId");
+  const body = await c.req.json().catch(() => ({}));
+  const phoneNumber = String(body.phoneNumber ?? "").trim();
+
+  if (!phoneNumber) {
+    return c.json({ status: "error", message: "Nomor telepon wajib diisi" }, 400);
+  }
+
+  const allowed = await isSessionAllowedForUser(user, sessionId);
+  if (!allowed) {
+    return c.json({ status: "error", message: "Session tidak valid untuk user ini" }, 403);
+  }
+
+  try {
+    const code = await requestSessionPairingCode(sessionId, phoneNumber);
+    return c.json({ status: "success", code });
+  } catch (err: any) {
+    return c.json({ status: "error", message: err.message }, 500);
+  }
 });
 
 router.post("/admin/sessions/:sessionId/delete", requireAuth, async (c) => {
