@@ -58,9 +58,8 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 
-RUN mkdir -p /app/.wwebjs_auth /app/.wwebjs_cache /app/data /app/public/assets/uploads && \
-    chown -R honowa:honowa /app && \
-    chmod -R 775 /app/data /app/.wwebjs_auth /app/.wwebjs_cache /app/public/assets/uploads
+RUN mkdir -p /app/.wwebjs_auth /app/.wwebjs_cache && \
+    chown -R honowa:honowa /app
 
 USER honowa
 

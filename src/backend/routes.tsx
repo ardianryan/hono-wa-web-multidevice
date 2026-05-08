@@ -241,31 +241,6 @@ router.get("/ui/scanqr/:sessionId", (c) =>
   c.redirect(`/session/qr/${c.req.param("sessionId")}`),
 );
 
-router.post("/admin/sessions/pair", requireAuth, async (c) => {
-  const user = c.get("authUser");
-  const body = await c.req.parseBody();
-  const sessionId = String(body.sessionId ?? "").trim();
-  const phone = String(body.phone ?? "").trim();
-
-  if (!sessionId || !phone) {
-    return c.json({ success: false, error: "Session ID dan nomor HP wajib diisi" }, 400);
-  }
-
-  const allowed = await isSessionAllowedForUser(user, sessionId);
-  if (!allowed) {
-    return c.json({ success: false, error: "Session tidak valid untuk user ini" }, 403);
-  }
-
-  try {
-    const { getPairingCode } = await import("./session/session-manager.js");
-    const code = await getPairingCode(sessionId, phone);
-    return c.json({ success: true, code });
-  } catch (err: any) {
-    console.error("[pairing] Gagal:", err);
-    return c.json({ success: false, error: err?.message || "Gagal mendapatkan kode pairing" }, 500);
-  }
-});
-
 router.get("/admin", requireAuth, async (c) => {
   const user = c.get("authUser");
   const { appName, appDescription, appLogoUrl } = await getUiSettings();
@@ -1991,38 +1966,7 @@ router.get("/session/qr/:sessionId", requireAuth, async (c) => {
   );
 });
 
-router.post("/session/pair/:sessionId", requireAuth, async (c) => {
-  try {
-    const sessionId = c.req.param("sessionId");
-    const body = await c.req.json();
-    const phone = body.phone;
 
-    if (!phone) return c.json({ error: 'Field "phone" wajib diisi' }, 400);
-
-    const sessionData = getOrCreateSession(sessionId);
-    const formattedPhone = formatPhone(phone);
-
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    const pairingCode =
-      await sessionData.client.requestPairingCode(formattedPhone);
-    sessionData.status = SESSION_STATUS.PENDING_PAIRING;
-
-    return c.json({
-      success: true,
-      sessionId,
-      pairingCode,
-      message:
-        "Buka WhatsApp > Perangkat Tertaut > Tautkan Perangkat, lalu masukkan kode ini.",
-    });
-  } catch (error: any) {
-    console.error(error);
-    return c.json(
-      { error: "Gagal membuat pairing code", details: error.toString() },
-      500,
-    );
-  }
-});
 
 router.get("/session/status/:sessionId", requireApiKey, async (c) => {
   const user = c.get("authUser");

@@ -135,8 +135,8 @@ export const SessionsPage: FC<
                         type="button"
                         data-session-id={s.sessionId}
                       >
-                        <i class="fa-solid fa-plug" style="margin-right: 6px;"></i>
-                        Connect
+                        <i class="fa-solid fa-qrcode" style="margin-right: 6px;"></i>
+                        Scan QR
                       </button>
                       <button
                         class="btn primary js-open-webhook"
@@ -172,57 +172,18 @@ export const SessionsPage: FC<
       <div class="modalCard">
         <div class="modalHead">
           <div class="modalTitle" id="qrModalTitle">
-            Connect Device
+            Scan QR
           </div>
           <button class="modalClose" type="button" id="qrModalClose">
             x
           </button>
         </div>
-
-        <div id="connectSelection" style="padding: 20px 0; display: flex; flex-direction: column; gap: 12px;">
-           <button class="btn success" id="selectQR" style="padding: 20px; font-weight: bold; font-size: 16px;">
-              <i class="fa-solid fa-qrcode" style="margin-right: 10px;"></i>
-              Scan QR Code
-           </button>
-           <button class="btn primary" id="selectPair" style="padding: 20px; font-weight: bold; font-size: 16px;">
-              <i class="fa-solid fa-phone" style="margin-right: 10px;"></i>
-              Pair with Phone Number
-           </button>
-           <div class="muted" style="text-align: center; font-size: 12px; margin-top: 10px;">Pilih salah satu metode untuk menghubungkan perangkat Anda.</div>
+        <div class="qrPane" id="qrModalPane">
+          <div class="spinner" />
+          <div class="qrHint">Menyiapkan QR...</div>
         </div>
-
-        <div id="connectContent" style="display: none;">
-          <div class="modalTabs" style="display: flex; border-bottom: 1px solid #eee; margin-bottom: 15px;">
-             <button class="tabBtn active" id="tabQR" style="flex: 1; padding: 10px; background: none; border: none; border-bottom: 2px solid #25D366; cursor: pointer; font-weight: bold;">Scan QR</button>
-             <button class="tabBtn" id="tabPair" style="flex: 1; padding: 10px; background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; color: #666;">Pair with Number</button>
-          </div>
-          
-          <div id="paneQR">
-            <div class="qrPane" id="qrModalPane">
-              <div class="spinner" />
-              <div class="qrHint">Menyiapkan QR...</div>
-            </div>
-          </div>
-
-          <div id="panePair" style="display: none; padding: 10px 0;">
-             <div class="formRow">
-                <div class="label">Nomor WhatsApp</div>
-                <input type="text" id="pairPhone" class="input" placeholder="6281234567890" />
-                <div class="muted" style="font-size: 11px; margin-top: 4px;">Gunakan kode negara (62...) tanpa tanda + atau spasi.</div>
-             </div>
-             <button class="btn primary" id="btnGetPairCode" style="width: 100%; margin-top: 10px;">Dapatkan Kode Pairing</button>
-             
-             <div id="pairResult" style="display: none; margin-top: 20px; text-align: center;">
-                <div class="muted" style="font-size: 13px; margin-bottom: 10px;">Masukkan kode ini di WhatsApp &gt; Perangkat Tertaut &gt; Tautkan dengan nomor telepon:</div>
-                <div id="pairCodeDisplay" style="font-family: monospace; font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #25D366; background: #f0fdf4; padding: 15px; border-radius: 8px; border: 2px dashed #25D366;">
-                   --------
-                </div>
-             </div>
-          </div>
-        </div>
-
         <div class="btnRow" style="margin-top: 12px;">
-          <button class="btn" type="button" id="qrModalRefresh" style="display: none;">
+          <button class="btn" type="button" id="qrModalRefresh">
             Refresh
           </button>
           <button class="btn" type="button" id="qrModalCloseBottom">
@@ -291,21 +252,6 @@ export const SessionsPage: FC<
   const closeBottom = document.getElementById("qrModalCloseBottom");
   const refreshBtn = document.getElementById("qrModalRefresh");
   const openButtons = document.querySelectorAll(".js-open-qr");
-  
-  const connectSelection = document.getElementById("connectSelection");
-  const connectContent = document.getElementById("connectContent");
-  const selectQR = document.getElementById("selectQR");
-  const selectPair = document.getElementById("selectPair");
-
-  const tabQR = document.getElementById("tabQR");
-  const tabPair = document.getElementById("tabPair");
-  const paneQR = document.getElementById("paneQR");
-  const panePair = document.getElementById("panePair");
-  const btnGetPairCode = document.getElementById("btnGetPairCode");
-  const pairPhone = document.getElementById("pairPhone");
-  const pairResult = document.getElementById("pairResult");
-  const pairCodeDisplay = document.getElementById("pairCodeDisplay");
-
   let currentSessionId = "";
   let pollTimer = null;
 
@@ -320,65 +266,6 @@ export const SessionsPage: FC<
     stopPoll();
     modal.classList.remove("show");
   };
-
-  const switchTab = (mode) => {
-     connectSelection.style.display = 'none';
-     connectContent.style.display = 'block';
-     if (mode === 'qr') {
-        tabQR.style.borderBottomColor = '#25D366';
-        tabQR.style.color = '#333';
-        tabPair.style.borderBottomColor = 'transparent';
-        tabPair.style.color = '#666';
-        paneQR.style.display = 'block';
-        panePair.style.display = 'none';
-        refreshBtn.style.display = 'inline-block';
-        renderLoading('Menghubungkan ke WhatsApp...');
-        pollQr();
-     } else {
-        tabPair.style.borderBottomColor = '#25D366';
-        tabPair.style.color = '#333';
-        tabQR.style.borderBottomColor = 'transparent';
-        tabQR.style.color = '#666';
-        paneQR.style.display = 'none';
-        panePair.style.display = 'block';
-        refreshBtn.style.display = 'none';
-        stopPoll();
-     }
-  };
-
-  selectQR.addEventListener('click', () => switchTab('qr'));
-  selectPair.addEventListener('click', () => switchTab('pair'));
-  tabQR.addEventListener('click', () => switchTab('qr'));
-  tabPair.addEventListener('click', () => switchTab('pair'));
-
-  btnGetPairCode.addEventListener('click', async () => {
-     const phone = pairPhone.value.trim();
-     if (!phone) return alert('Masukkan nomor HP');
-     
-     btnGetPairCode.disabled = true;
-     btnGetPairCode.textContent = 'Meminta kode...';
-     pairResult.style.display = 'none';
-
-     try {
-        const res = await fetch('/admin/sessions/pair', {
-           method: 'POST',
-           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-           body: new URLSearchParams({ sessionId: currentSessionId, phone })
-        });
-        const data = await res.json();
-        if (data.success) {
-           pairCodeDisplay.textContent = data.code;
-           pairResult.style.display = 'block';
-        } else {
-           alert(data.error || 'Gagal mengambil kode');
-        }
-     } catch (err) {
-        alert('Gagal menghubungi server');
-     } finally {
-        btnGetPairCode.disabled = false;
-        btnGetPairCode.textContent = 'Dapatkan Kode Pairing';
-     }
-  });
 
   const renderLoading = (text) => {
     pane.innerHTML = '<div class="spinner"></div><div class="qrHint">' + text + '</div>';
@@ -397,11 +284,11 @@ export const SessionsPage: FC<
   const renderQR = (sessionId, qrImageUrl) => {
     pane.innerHTML =
       '<div class="qrImageWrap"><img src="' + qrImageUrl + '" alt="QR" width="250" height="250" /></div>' +
-      '<div class="qrHint">Session: <strong>' + sessionId + '</strong><br/>Scan QR ini di WhatsApp &gt; Perangkat Tertaut.</div>';
+      '<div class="qrHint">Session: <strong>' + sessionId + '</strong><br/>Scan QR ini di WhatsApp > Perangkat Tertaut.</div>';
   };
 
   const pollQr = async () => {
-    if (!currentSessionId || paneQR.style.display === 'none') return;
+    if (!currentSessionId) return;
     try {
       const res = await fetch('/admin/session-qr/' + encodeURIComponent(currentSessionId), {
         headers: { 'Accept': 'application/json' }
@@ -426,12 +313,11 @@ export const SessionsPage: FC<
   const openModal = (sessionId) => {
     if (!sessionId) return;
     currentSessionId = sessionId;
-    title.textContent = 'Connect Device - ' + sessionId;
+    title.textContent = 'Scan QR - ' + sessionId;
     modal.classList.add('show');
-    connectSelection.style.display = 'flex';
-    connectContent.style.display = 'none';
-    refreshBtn.style.display = 'none';
     stopPoll();
+    renderLoading('Mengambil QR terbaru...');
+    pollQr();
   };
 
   openButtons.forEach((btn) => {
