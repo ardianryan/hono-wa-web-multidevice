@@ -18,7 +18,9 @@ const getAdapter = (modelName: string) => {
   if (modelName.startsWith("gpt") || modelName.includes("openai")) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
-    return createOpenaiChat(modelName as any, apiKey);
+    return createOpenaiChat(modelName as any, apiKey, {
+      baseURL: process.env.OPENAI_BASE_URL || undefined,
+    });
   }
 
   if (modelName.startsWith("claude") || modelName.includes("anthropic")) {
@@ -36,7 +38,10 @@ const getImageAdapter = (modelName: string) => {
   if (modelName.startsWith("dall-e") || modelName.includes("openai")) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
-    return (openaiImage as any)(modelName, apiKey);
+    return (openaiImage as any)(modelName, {
+      apiKey,
+      baseURL: process.env.OPENAI_BASE_URL || undefined,
+    });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
