@@ -22,9 +22,17 @@ export const db = drizzle(pool);
 export const appSchema = { appSettings, users, authSessions, waSessions, actionLogs, aiChats };
 
 export const migrateDb = async () => {
-  console.log("[db] checking migrations...");
-  await migrate(db, { migrationsFolder: "./drizzle" });
-  console.log("[db] migrations applied.");
+  try {
+    console.log("[db] checking migrations...");
+    await migrate(db, { migrationsFolder: "./drizzle" });
+    console.log("[db] migrations applied.");
+  } catch (err: any) {
+    if (err.message?.includes("already exists")) {
+      console.log("[db] tables already exist, skipping migration.");
+    } else {
+      console.error("[db] migration warning:", err.message);
+    }
+  }
 };
 
 export const getSetting = async (key: string): Promise<string | null> => {

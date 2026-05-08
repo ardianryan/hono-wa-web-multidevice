@@ -146,16 +146,24 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
 export const getPairingCode = async (sessionId: string, phone: string): Promise<string> => {
   const session = sessions.get(sessionId) ?? getOrCreateSession(sessionId);
   
-  // Tunggu sebentar sampai client terinisialisasi
+  // Tunggu sampai client benar-benar siap untuk pairing
   let retry = 0;
-  while (!session.client.pupBrowser && retry < 10) {
+  while (session.status === SESSION_STATUS.INITIALIZING && retry < 15) {
     await new Promise(r => setTimeout(r, 1000));
     retry++;
   }
 
+  // Tambahan delay 2 detik untuk memastikan listener internal WA Web sudah terpasang
+  await new Promise(r => setTimeout(r, 2000));
+
   const formatted = phone.replace(/\D/g, "");
-  const code = await session.client.requestPairingCode(formatted);
-  return code;
+  try {
+    const code = await session.client.requestPairingCode(formatted);
+    return code;
+  } catch (err: any) {
+    console.error(`[${sessionId}] Gagal request pairing code:`, err.message);
+    throw err;
+  }
 };
 
 export const restoreSessionsFromFile = () => {
