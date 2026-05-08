@@ -1,17 +1,16 @@
-#dependency
 node_modules
-
-# build
 dist
 
-# design templates
+.env
+.env.*
+!.env.example
+
+.git
+.gitignore
+.github
+
 .stitch_whatsapp_api_dashboard
 
-#environment
-.env
-.env.production
-
-#logs
 logs/
 *.log
 npm-debug.log*
@@ -19,7 +18,21 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-#whatsapp-web.js
-*.session
 .wwebjs_auth/
 .wwebjs_cache/
+*.session
+
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+*.md
+LICENSE
+
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

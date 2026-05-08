@@ -98,7 +98,7 @@ export const ApiDocsPage: FC<
           class="muted"
           style="margin-top: 10px; font-size: 13px; line-height: 1.7;"
         >
-          Base URL: <b>http://localhost:3000</b>
+          Base URL: <b>http://localhost:4000</b>
           <br />
           Auth Header:
           <br />- <b>X-API-Key</b>: {"<API_KEY>"}
@@ -253,19 +253,19 @@ export const ApiDocsPage: FC<
           Ganti <b>sesi1</b> dan <b>{`<API_KEY_ANDA>`}</b> sesuai data kamu.
         </div>
         <div style="margin-top: 12px; font-weight: 900;">GET /sessions</div>
-        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl "http://localhost:3000/sessions" \\
+        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl "http://localhost:4000/sessions" \\
   -H "X-API-Key: <API_KEY_ANDA>"`}</pre>
 
         <div style="margin-top: 12px; font-weight: 900;">
           GET /session/status/:sessionId
         </div>
-        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl "http://localhost:3000/session/status/sesi1" \\
+        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl "http://localhost:4000/session/status/sesi1" \\
   -H "X-API-Key: <API_KEY_ANDA>"`}</pre>
 
         <div style="margin-top: 12px; font-weight: 900;">
           POST /send/:sessionId (text)
         </div>
-        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X POST "http://localhost:3000/send/sesi1" \\
+        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X POST "http://localhost:4000/send/sesi1" \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: <API_KEY_ANDA>" \\
   -d '{"phone":"081234567890","message":"Halo!"}'`}</pre>
@@ -273,7 +273,7 @@ export const ApiDocsPage: FC<
         <div style="margin-top: 12px; font-weight: 900;">
           POST /send/:sessionId (mediaUrl)
         </div>
-        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X POST "http://localhost:3000/send/sesi1" \\
+        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X POST "http://localhost:4000/send/sesi1" \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: <API_KEY_ANDA>" \\
   -d '{"phone":"081234567890","message":"Caption","mediaUrl":"https://example.com/file.jpg"}'`}</pre>
@@ -281,7 +281,7 @@ export const ApiDocsPage: FC<
         <div style="margin-top: 12px; font-weight: 900;">
           POST /send/:sessionId (upload)
         </div>
-        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X POST "http://localhost:3000/send/sesi1" \\
+        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X POST "http://localhost:4000/send/sesi1" \\
   -H "X-API-Key: <API_KEY_ANDA>" \\
   -F "phone=081234567890" \\
   -F "message=Caption" \\
@@ -290,7 +290,7 @@ export const ApiDocsPage: FC<
         <div style="margin-top: 12px; font-weight: 900;">
           POST /send-group/:sessionId
         </div>
-        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X POST "http://localhost:3000/send-group/sesi1" \\
+        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X POST "http://localhost:4000/send-group/sesi1" \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: <API_KEY_ANDA>" \\
   -d '{"groupId":"120363xxxx@g.us","message":"Halo grup!"}'`}</pre>
@@ -298,7 +298,7 @@ export const ApiDocsPage: FC<
         <div style="margin-top: 12px; font-weight: 900;">
           POST /broadcast/:sessionId (text)
         </div>
-        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X POST "http://localhost:3000/broadcast/sesi1" \\
+        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X POST "http://localhost:4000/broadcast/sesi1" \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: <API_KEY_ANDA>" \\
   -d '{"phones":["0812...","0898..."],"message":"Halo","delayMs":5000}'`}</pre>
@@ -306,7 +306,7 @@ export const ApiDocsPage: FC<
         <div style="margin-top: 12px; font-weight: 900;">
           POST /broadcast/:sessionId (mediaUrl)
         </div>
-        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X POST "http://localhost:3000/broadcast/sesi1" \\
+        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X POST "http://localhost:4000/broadcast/sesi1" \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: <API_KEY_ANDA>" \\
   -d '{"phones":["0812...","0898..."],"message":"Caption","mediaUrl":"https://example.com/file.pdf","delayMs":5000}'`}</pre>
@@ -314,7 +314,7 @@ export const ApiDocsPage: FC<
         <div style="margin-top: 12px; font-weight: 900;">
           POST /broadcast/:sessionId (upload)
         </div>
-        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X POST "http://localhost:3000/broadcast/sesi1" \\
+        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X POST "http://localhost:4000/broadcast/sesi1" \\
   -H "X-API-Key: <API_KEY_ANDA>" \\
   -F "phones=0812...,0898..." \\
   -F "message=Caption" \\
@@ -324,7 +324,7 @@ export const ApiDocsPage: FC<
         <div style="margin-top: 12px; font-weight: 900;">
           POST /status/:sessionId
         </div>
-        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X POST "http://localhost:3000/status/sesi1" \\
+        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X POST "http://localhost:4000/status/sesi1" \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: <API_KEY_ANDA>" \\
   -d '{"text":"Halo","mediaUrl":"https://example.com/image.jpg"}'`}</pre>
@@ -332,7 +332,7 @@ export const ApiDocsPage: FC<
         <div style="margin-top: 12px; font-weight: 900;">
           DELETE /session/:sessionId
         </div>
-        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X DELETE "http://localhost:3000/session/sesi1" \\
+        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X DELETE "http://localhost:4000/session/sesi1" \\
   -H "X-API-Key: <API_KEY_ANDA>"`}</pre>
       </div>
 
@@ -345,13 +345,13 @@ export const ApiDocsPage: FC<
           Contoh berikut sama, hanya header auth yang berbeda.
         </div>
         <div style="margin-top: 12px; font-weight: 900;">GET /sessions</div>
-        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl "http://localhost:3000/sessions" \\
+        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl "http://localhost:4000/sessions" \\
   -H "Authorization: Bearer <API_KEY_ANDA>"`}</pre>
 
         <div style="margin-top: 12px; font-weight: 900;">
           POST /send/:sessionId (text)
         </div>
-        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X POST "http://localhost:3000/send/sesi1" \\
+        <pre style="margin-top: 10px; white-space: pre-wrap; font-size: 13px; padding: 12px; border-radius: 14px; background: rgba(2,6,23,0.03); border: 1px solid rgba(199,196,216,0.35);">{`curl -X POST "http://localhost:4000/send/sesi1" \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer <API_KEY_ANDA>" \\
   -d '{"phone":"081234567890","message":"Halo!"}'`}</pre>

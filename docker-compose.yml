@@ -2,14 +2,59 @@ services:
   wa-api:
     build: .
     container_name: wa-api-service-honojs
-    restart: always
+    restart: unless-stopped
     ports:
-      # Port kiri (komputermu) : Port kanan (dalam container)
-      - "3000:3000"
+      - "4000:4000"
     volumes:
-      # INI SANGAT PENTING: Menyimpan folder sesi login WhatsApp
-      # ke komputer aslimu agar tidak minta Pairing Code lagi kalau server di-restart
       - ./.wwebjs_auth:/app/.wwebjs_auth
+      - ./.wwebjs_cache:/app/.wwebjs_cache
+      - ./public/assets/uploads:/app/public/assets/uploads
     environment:
-      # Mengatur zona waktu agar log-nya akurat
       - TZ=Asia/Jakarta
+      - PORT=4000
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${PGUSER:-honowa}:${PGPASSWORD:-honowa_secret}@${PGHOST:-postgres}:${PGPORT:-5432}/${PGDATABASE:-honowa}
+      - PGHOST=${PGHOST:-postgres}
+      - PGPORT=${PGPORT:-5432}
+      - PGDATABASE=${PGDATABASE:-honowa}
+      - PGUSER=${PGUSER:-honowa}
+      - PGPASSWORD=${PGPASSWORD:-honowa_secret}
+      - PGPOOL_MAX=10
+      - DEFAULT_ADMIN_USERNAME=${DEFAULT_ADMIN_USERNAME:-admin}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-admin123}
+      - WEBHOOK_URL=${WEBHOOK_URL:-}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/login"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: wa-api-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${PGDATABASE:-honowa}
+      - POSTGRES_USER=${PGUSER:-honowa}
+      - POSTGRES_PASSWORD=${PGPASSWORD:-honowa_secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-honowa} -d ${PGDATABASE:-honowa}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+

@@ -71,7 +71,7 @@ import {
   updateUserProfilePhotoUrl,
   verifyPassword,
 } from "./utils/auth.js";
-import { db as ormDb, ensureDefaultSettings, ensureSchema, getDb } from "./config/db.js";
+import { db as ormDb, ensureDefaultSettings,  getDb } from "./config/db.js";
 import { invalidateWebhookCache } from "./webhook/webhook.js";
 import { and, eq } from "drizzle-orm";
 import { waSessions } from "./config/schema.js";
@@ -129,7 +129,6 @@ import { handleAiChat, handleAiImage, getAiChatHistory, deleteAllAiChatHistory }
 
 router.get("/login", async (c) => {
   try {
-    await ensureSchema();
     await ensureDefaultSettings();
     await ensureDefaultAdmin();
   } catch (err) {
@@ -160,7 +159,6 @@ router.get("/login", async (c) => {
 
 router.post("/login", async (c) => {
   try {
-    await ensureSchema();
     await ensureDefaultSettings();
     await ensureDefaultAdmin();
   } catch (err) {
@@ -790,14 +788,21 @@ router.post("/admin/sessions/webhook", requireAuth, async (c) => {
 
   let webhookUrl: string | null = null;
   if (rawWebhookUrl) {
-    try {
-      const u = new URL(rawWebhookUrl);
-      if (u.protocol !== "http:" && u.protocol !== "https:") {
-        return c.redirect(withToast("/admin/sessions", "Webhook harus http/https", "error"));
+    const urls = rawWebhookUrl.split(/[\n,]/).map((u) => u.trim()).filter(Boolean);
+    const validUrls: string[] = [];
+    for (const urlStr of urls) {
+      try {
+        const u = new URL(urlStr);
+        if (u.protocol !== "http:" && u.protocol !== "https:") {
+          return c.redirect(withToast("/admin/sessions", "Semua webhook harus http/https", "error"));
+        }
+        validUrls.push(u.toString());
+      } catch {
+        return c.redirect(withToast("/admin/sessions", `Format webhook URL tidak valid: ${urlStr}`, "error"));
       }
-      webhookUrl = u.toString();
-    } catch {
-      return c.redirect(withToast("/admin/sessions", "Format webhook URL tidak valid", "error"));
+    }
+    if (validUrls.length > 0) {
+      webhookUrl = validUrls.join(",");
     }
   }
 
