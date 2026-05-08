@@ -241,6 +241,31 @@ router.get("/ui/scanqr/:sessionId", (c) =>
   c.redirect(`/session/qr/${c.req.param("sessionId")}`),
 );
 
+router.post("/admin/sessions/pair", requireAuth, async (c) => {
+  const user = c.get("authUser");
+  const body = await c.req.parseBody();
+  const sessionId = String(body.sessionId ?? "").trim();
+  const phone = String(body.phone ?? "").trim();
+
+  if (!sessionId || !phone) {
+    return c.json({ success: false, error: "Session ID dan nomor HP wajib diisi" }, 400);
+  }
+
+  const allowed = await isSessionAllowedForUser(user, sessionId);
+  if (!allowed) {
+    return c.json({ success: false, error: "Session tidak valid untuk user ini" }, 403);
+  }
+
+  try {
+    const { getPairingCode } = await import("./session/session-manager.js");
+    const code = await getPairingCode(sessionId, phone);
+    return c.json({ success: true, code });
+  } catch (err: any) {
+    console.error("[pairing] Gagal:", err);
+    return c.json({ success: false, error: err?.message || "Gagal mendapatkan kode pairing" }, 500);
+  }
+});
+
 router.get("/admin", requireAuth, async (c) => {
   const user = c.get("authUser");
   const { appName, appDescription, appLogoUrl } = await getUiSettings();

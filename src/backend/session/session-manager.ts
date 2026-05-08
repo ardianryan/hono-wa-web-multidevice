@@ -143,6 +143,21 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
   return sessionData;
 };
 
+export const getPairingCode = async (sessionId: string, phone: string): Promise<string> => {
+  const session = sessions.get(sessionId) ?? getOrCreateSession(sessionId);
+  
+  // Tunggu sebentar sampai client terinisialisasi
+  let retry = 0;
+  while (!session.client.pupBrowser && retry < 10) {
+    await new Promise(r => setTimeout(r, 1000));
+    retry++;
+  }
+
+  const formatted = phone.replace(/\D/g, "");
+  const code = await session.client.requestPairingCode(formatted);
+  return code;
+};
+
 export const restoreSessionsFromFile = () => {
   const saved = readSessionFile();
   const ids = Object.keys(saved);
