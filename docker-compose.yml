@@ -8,6 +8,7 @@ services:
     volumes:
       - ./.wwebjs_auth:/app/.wwebjs_auth
       - ./.wwebjs_cache:/app/.wwebjs_cache
+      - ./data:/app/data
       - ./public/assets/uploads:/app/public/assets/uploads
     environment:
       - TZ=Asia/Jakarta
