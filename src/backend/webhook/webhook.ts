@@ -50,6 +50,10 @@ const getWebhookUrlForSession = async (sessionId: string): Promise<string[]> => 
       urls = normalizeWebhookUrl(result[0].webhookUrl);
     }
 
+    if (urls.length === 0 && process.env.WEBHOOK_URL) {
+      urls = normalizeWebhookUrl(process.env.WEBHOOK_URL);
+    }
+
     webhookUrlCache.set(sessionId, { urls, expiresAt: now + 30_000 });
     return urls;
   } catch {
@@ -110,7 +114,7 @@ export const webhookMessageReceived = (
     groupId?: string;
     timestamp: number;
     messageId: string;
-    media?: { caption?: string; path?: string };
+    media?: { caption?: string; path?: string; url?: string; mimetype?: string; filename?: string };
   },
 ) =>
   sendWebhook(sessionId, {

@@ -17,6 +17,7 @@ import {
   webhookSessionDisconnected,
 } from "../webhook/webhook.js";
 import { createActionLog } from "../utils/auth.js";
+import { uploadToR2 } from "../service/r2.service.js";
 
 const require = createRequire(import.meta.url);
 const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js") as {
@@ -99,6 +100,27 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
         ? `${contact.number}@c.us`
         : msg.from;
 
+    let mediaPayload: any = undefined;
+
+    if (msg.hasMedia) {
+      mediaPayload = { caption: msg.body };
+      try {
+        const media = await msg.downloadMedia();
+        if (media && media.data) {
+          const buffer = Buffer.from(media.data, "base64");
+          const ext = media.mimetype ? media.mimetype.split("/")[1]?.split(";")[0] : "bin";
+          const uploadedUrl = await uploadToR2(buffer, media.mimetype, ext);
+          if (uploadedUrl) {
+            mediaPayload.url = uploadedUrl;
+            mediaPayload.mimetype = media.mimetype;
+            mediaPayload.filename = media.filename;
+          }
+        }
+      } catch (err: any) {
+        console.error(`[${sessionId}] Failed to process media:`, err.message ?? err);
+      }
+    }
+
     webhookMessageReceived(sessionId, deviceId, {
       messageId: msg.id._serialized,
       from: senderJid,
@@ -109,7 +131,7 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
       isGroup,
       groupId: isGroup ? msg.from : undefined,
       timestamp: msg.timestamp,
-      ...(msg.hasMedia ? { media: { caption: msg.body } } : {}),
+      ...(mediaPayload ? { media: mediaPayload } : {}),
     });
   });
 
@@ -407,3 +429,53 @@ export const enqueueBroadcastJob = async (input: {
 
 export const getBroadcastJob = (jobId: string): BroadcastJob | null =>
   broadcastJobs.get(jobId) ?? null;
+
+export const requestSessionPairingCode = async (sessionId: string, phoneNumber: string): Promise<string> => {
+  let session = sessions.get(sessionId);
+  if (!session) {
+    session = getOrCreateSession(sessionId);
+  }
+
+  if (session.status === SESSION_STATUS.READY) {
+    throw new Error(`Session ${sessionId} is already ready`);
+  }
+
+  if (session.status === SESSION_STATUS.INITIALIZING) {
+    let attempts = 0;
+    while (session.status === SESSION_STATUS.INITIALIZING && attempts < 15) {
+      await new Promise((r) => setTimeout(r, 2000));
+      attempts++;
+    }
+    if (session.status === SESSION_STATUS.INITIALIZING) {
+      throw new Error("Session masih dalam proses inisialisasi. Silakan coba lagi dalam beberapa detik.");
+    }
+  }
+
+  if (session.status === SESSION_STATUS.READY) {
+    throw new Error(`Session ${sessionId} is already ready`);
+  }
+
+  const formattedPhone = formatPhone(phoneNumber);
+  
+  // Try exposing the function to the page if it wasn't exposed yet
+  try {
+    // exposeFunction is needed because pairWithPhoneNumber might not have been set in the options
+    await session.client.pupPage?.exposeFunction('onCodeReceivedEvent', (code: string) => {
+      // The event handles code emitting, but we'll also just return it from requestPairingCode
+      return code;
+    });
+  } catch (err: any) {
+    // If it throws "Function onCodeReceivedEvent already evaluated", it's fine
+    if (!err.message?.includes("already evaluated")) {
+      console.warn(`[${sessionId}] Expose function warning:`, err.message);
+    }
+  }
+
+  try {
+    const code = await session.client.requestPairingCode(formattedPhone);
+    return code;
+  } catch (err: any) {
+    console.error(`[${sessionId}] Failed to request pairing code:`, err);
+    throw new Error("Gagal meminta pairing code. Pastikan nomor benar dan session sedang meminta QR.");
+  }
+};
