@@ -224,7 +224,7 @@ router.post("/login", async (c) => {
   setCookie(c, "sid", sid, {
     httpOnly: true,
     sameSite: "Lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.COOKIE_SECURE === "true",
     path: "/",
   });
   return c.redirect(withToast("/admin", "Login berhasil", "success"));
@@ -312,7 +312,7 @@ router.post("/admin/api-docs/api-key/rotate", requireAuth, async (c) => {
   setCookie(c, "flash_api_key", newApiKey, {
     httpOnly: true,
     sameSite: "Lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.COOKIE_SECURE === "true",
     path: "/admin/api-docs",
     maxAge: 60,
   });
