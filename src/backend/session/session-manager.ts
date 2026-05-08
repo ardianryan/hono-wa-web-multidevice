@@ -69,7 +69,7 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
   persistSession(sessionId, sessionData);
 
   client.on("qr", (qr: string) => {
-    sessionData.status = SESSION_STATUS.PENDING_PAIRING;
+    sessionData.status = SESSION_STATUS.QR;
     sessionData.qr = qr;
     persistSession(sessionId, sessionData);
     console.log(`[${sessionId}] QR/Pairing code diminta`);
@@ -146,24 +146,48 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
 export const getPairingCode = async (sessionId: string, phone: string): Promise<string> => {
   const session = sessions.get(sessionId) ?? getOrCreateSession(sessionId);
   
-  // Tunggu sampai client benar-benar siap untuk pairing
-  let retry = 0;
-  while (session.status === SESSION_STATUS.INITIALIZING && retry < 15) {
+  // Tunggu sampai status menjadi QR (siap login)
+  let retryWait = 0;
+  while (session.status !== SESSION_STATUS.QR && retryWait < 30) {
     await new Promise(r => setTimeout(r, 1000));
-    retry++;
+    retryWait++;
   }
 
-  // Tambahan delay 2 detik untuk memastikan listener internal WA Web sudah terpasang
-  await new Promise(r => setTimeout(r, 2000));
+  if (session.status !== SESSION_STATUS.QR && session.status !== SESSION_STATUS.INITIALIZING) {
+    // Jika sudah ready, tidak perlu pairing
+    if (session.status === SESSION_STATUS.READY) throw new Error("Sesi sudah terhubung.");
+  }
+
+  // Berikan waktu ekstra 3 detik agar script internal WA Web benar-benar terinjeksi
+  await new Promise(r => setTimeout(r, 3000));
 
   const formatted = phone.replace(/\D/g, "");
-  try {
-    const code = await session.client.requestPairingCode(formatted);
-    return code;
-  } catch (err: any) {
-    console.error(`[${sessionId}] Gagal request pairing code:`, err.message);
-    throw err;
+  
+  // Lakukan retry internal jika window.onCodeReceivedEvent belum siap
+  let attempts = 0;
+  const maxAttempts = 3;
+  
+  while (attempts < maxAttempts) {
+    try {
+      // Berikan jeda antar attempt
+      await new Promise(r => setTimeout(r, 3000));
+      
+      const code = await session.client.requestPairingCode(formatted);
+      console.log(`[${sessionId}] Pairing code berhasil didapat: ${code}`);
+      return code;
+    } catch (err: any) {
+      attempts++;
+      console.warn(`[${sessionId}] Gagal request pairing code (Attempt ${attempts}/${maxAttempts}):`, err.message);
+      
+      if (attempts >= maxAttempts) {
+        throw new Error(`WhatsApp Web belum siap. Silakan coba lagi dalam beberapa detik. (Error: ${err.message})`);
+      }
+      // Tunggu lebih lama sebelum mencoba lagi
+      await new Promise(r => setTimeout(r, 2000));
+    }
   }
+  
+  throw new Error("Gagal mendapatkan kode pairing setelah beberapa percobaan.");
 };
 
 export const restoreSessionsFromFile = () => {

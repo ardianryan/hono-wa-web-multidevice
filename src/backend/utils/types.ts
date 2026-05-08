@@ -4,6 +4,7 @@
 
 export const SESSION_STATUS = {
   INITIALIZING: "initializing",
+  QR: "qr",
   PENDING_PAIRING: "pending_pairing",
   READY: "ready",
   DISCONNECTED: "disconnected",
