@@ -82,28 +82,36 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
     sessionData.qr = undefined;
     persistSession(sessionId, sessionData);
     console.log(`[${sessionId}] SIAP digunakan`);
-    webhookSessionReady(sessionId);
+    const deviceId = client.info?.wid?._serialized ?? sessionId;
+    webhookSessionReady(sessionId, deviceId);
   });
 
   client.on("message", async (msg: any) => {
     const isGroup = msg.from.endsWith("@g.us");
-    webhookMessageReceived(sessionId, {
+    const deviceId = client.info?.wid?._serialized ?? sessionId;
+    const contact = await msg.getContact();
+    const fromName = contact.pushname || contact.name || msg._data?.notifyName || "Unknown";
+
+    webhookMessageReceived(sessionId, deviceId, {
       messageId: msg.id._serialized,
       from: msg.from,
+      from_name: fromName,
       to: msg.to,
       body: msg.body,
       type: msg.type,
       isGroup,
       groupId: isGroup ? msg.from : undefined,
       timestamp: msg.timestamp,
+      ...(msg.hasMedia ? { media: { caption: msg.body } } : {}),
     });
   });
 
   client.on("disconnected", (reason: string) => {
+    const deviceId = client.info?.wid?._serialized ?? sessionId;
     sessionData.status = SESSION_STATUS.DISCONNECTED;
     persistSession(sessionId, sessionData);
     console.log(`[${sessionId}] Terputus: ${reason}`);
-    webhookSessionDisconnected(sessionId, reason);
+    webhookSessionDisconnected(sessionId, deviceId, reason);
 
     setTimeout(async () => {
       if (sessions.get(sessionId)?.status === SESSION_STATUS.DISCONNECTED) {
@@ -133,6 +141,21 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
   });
 
   return sessionData;
+};
+
+export const getPairingCode = async (sessionId: string, phone: string): Promise<string> => {
+  const session = sessions.get(sessionId) ?? getOrCreateSession(sessionId);
+  
+  // Tunggu sebentar sampai client terinisialisasi
+  let retry = 0;
+  while (!session.client.pupBrowser && retry < 10) {
+    await new Promise(r => setTimeout(r, 1000));
+    retry++;
+  }
+
+  const formatted = phone.replace(/\D/g, "");
+  const code = await session.client.requestPairingCode(formatted);
+  return code;
 };
 
 export const restoreSessionsFromFile = () => {
