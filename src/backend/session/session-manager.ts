@@ -92,9 +92,16 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
     const contact = await msg.getContact();
     const fromName = contact.pushname || contact.name || msg._data?.notifyName || "Unknown";
 
+    // Resolve LID to traditional phone JID (@c.us)
+    const senderJid = contact.id._serialized.includes("@c.us")
+      ? contact.id._serialized
+      : contact.number
+        ? `${contact.number}@c.us`
+        : msg.from;
+
     webhookMessageReceived(sessionId, deviceId, {
       messageId: msg.id._serialized,
-      from: msg.from,
+      from: senderJid,
       from_name: fromName,
       to: msg.to,
       body: msg.body,
