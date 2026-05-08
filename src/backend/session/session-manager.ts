@@ -42,7 +42,14 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
     authStrategy: new LocalAuth({ clientId: sessionId }),
     puppeteer: {
       headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      args: [
+        "--no-sandbox", 
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-web-security",
+        "--disable-features=IsolateOrigins,site-per-process",
+        "--allow-running-insecure-content",
+      ],
       bypassCSP: true,
       executablePath:
         process.platform === "linux"
@@ -59,6 +66,17 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
 
   // Mencegah MaxListenersExceededWarning saat banyak request QR/pairing simultan
   client.setMaxListeners(20);
+
+  // Bersihkan SingletonLock (penyebab umum Chrome macet di Docker)
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const lockFile = path.join(process.cwd(), ".wwebjs_auth", `session-${sessionId}`, "Default", "SingletonLock");
+    if (fs.existsSync(lockFile)) {
+      fs.unlinkSync(lockFile);
+      console.log(`[${sessionId}] SingletonLock cleaned.`);
+    }
+  } catch (e) {}
 
   const sessionData: SessionData = {
     client,
@@ -169,8 +187,19 @@ export const getPairingCode = async (sessionId: string, phone: string): Promise<
   
   while (attempts < maxAttempts) {
     try {
-      // Berikan jeda antar attempt
-      await new Promise(r => setTimeout(r, 3000));
+      // Tunggu jeda antar attempt
+      await new Promise(r => setTimeout(r, 5000));
+      
+      // Cek apakah WWebJS sudah terinjeksi oleh library
+      const isReady = await session.client.pupPage?.evaluate(() => {
+        return typeof (window as any).WWebJS !== "undefined";
+      });
+
+      if (!isReady) {
+         console.log(`[${sessionId}] WWebJS belum siap, mencoba memicu pemuatan...`);
+         // Trigger interaksi kecil agar browser merasa aktif
+         await session.client.pupPage?.mouse.move(100, 100);
+      }
       
       const code = await session.client.requestPairingCode(formatted);
       console.log(`[${sessionId}] Pairing code berhasil didapat: ${code}`);
@@ -180,10 +209,13 @@ export const getPairingCode = async (sessionId: string, phone: string): Promise<
       console.warn(`[${sessionId}] Gagal request pairing code (Attempt ${attempts}/${maxAttempts}):`, err.message);
       
       if (attempts >= maxAttempts) {
-        throw new Error(`WhatsApp Web belum siap. Silakan coba lagi dalam beberapa detik. (Error: ${err.message})`);
+        throw new Error(`Browser di Docker sedang sibuk. Silakan Refresh halaman Admin lalu coba lagi. (Error: ${err.message})`);
       }
-      // Tunggu lebih lama sebelum mencoba lagi
-      await new Promise(r => setTimeout(r, 2000));
+      // Reload halaman jika gagal terus (biasanya membantu mereset script injection)
+      if (attempts === 2) {
+         console.log(`[${sessionId}] Mencoba reload halaman browser...`);
+         await session.client.pupPage?.reload();
+      }
     }
   }
   
