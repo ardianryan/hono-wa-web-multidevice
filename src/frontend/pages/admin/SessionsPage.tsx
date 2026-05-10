@@ -139,6 +139,14 @@ export const SessionsPage: FC<
                         Scan QR
                       </button>
                       <button
+                        class="btn primary js-open-pairing"
+                        type="button"
+                        data-session-id={s.sessionId}
+                      >
+                        <i class="fa-solid fa-mobile-screen" style="margin-right: 6px;"></i>
+                        Pair with Phone
+                      </button>
+                      <button
                         class="btn primary js-open-webhook"
                         type="button"
                         data-session-id={s.sessionId}
@@ -187,6 +195,41 @@ export const SessionsPage: FC<
             Refresh
           </button>
           <button class="btn" type="button" id="qrModalCloseBottom">
+            Tutup
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="pairingModal" class="modalBackdrop" role="dialog" aria-modal="true">
+      <div class="modalCard">
+        <div class="modalHead">
+          <div class="modalTitle" id="pairingModalTitle">
+            Pair with Phone Number
+          </div>
+          <button class="modalClose" type="button" id="pairingModalClose">
+            x
+          </button>
+        </div>
+        <div class="qrPane" id="pairingModalPane" style="text-align: left;">
+          <form id="pairingForm">
+            <div class="formRow">
+              <div class="label">Nomor WhatsApp</div>
+              <input type="text" id="pairingPhoneInput" class="input" placeholder="contoh: 6281234567890" required />
+            </div>
+            <div class="muted" style="margin-top: 8px; font-size: 12px; margin-bottom: 12px;">
+              Pastikan format menggunakan kode negara tanpa tanda + atau angka 0 di depan.
+            </div>
+            <button type="submit" class="btn primary" style="width: 100%;">Minta Kode Pairing</button>
+          </form>
+          <div id="pairingCodeResult" style="display: none; margin-top: 16px; text-align: center;">
+             <div style="font-size: 14px; font-weight: bold;">Kode Pairing Anda:</div>
+             <div id="pairingCodeText" style="font-size: 32px; font-weight: 900; letter-spacing: 4px; margin: 12px 0; padding: 12px; background: rgba(0,0,0,0.05); border-radius: 8px;"></div>
+             <div class="muted" style="font-size: 12px;">Buka WhatsApp &gt; Perangkat Tertaut &gt; Tautkan dengan Nomor Telepon. Lalu masukkan kode di atas.</div>
+          </div>
+        </div>
+        <div class="btnRow" style="margin-top: 12px;">
+          <button class="btn" type="button" id="pairingModalCloseBottom">
             Tutup
           </button>
         </div>
@@ -339,8 +382,136 @@ export const SessionsPage: FC<
     if (e.target === modal) closeModal();
   });
 
-  const autoSession = ${JSON.stringify(props.openQrSessionId ?? "")};
+  const autoSession = null;
   if (autoSession) openModal(autoSession);
+})();
+        `,
+      }}
+    />
+
+    <script
+      dangerouslySetInnerHTML={{
+        __html: `
+(() => {
+  const modal = document.getElementById("pairingModal");
+  const title = document.getElementById("pairingModalTitle");
+  const closeTop = document.getElementById("pairingModalClose");
+  const closeBottom = document.getElementById("pairingModalCloseBottom");
+  const openButtons = document.querySelectorAll(".js-open-pairing");
+  const form = document.getElementById("pairingForm");
+  const phoneInput = document.getElementById("pairingPhoneInput");
+  const resultDiv = document.getElementById("pairingCodeResult");
+  const codeText = document.getElementById("pairingCodeText");
+  let currentSessionId = "";
+  let pollTimer = null;
+
+  const stopPoll = () => {
+    if (pollTimer) {
+      clearTimeout(pollTimer);
+      pollTimer = null;
+    }
+  };
+
+  const closeModal = () => {
+    stopPoll();
+    modal.classList.remove("show");
+  };
+
+  const renderReady = () => {
+    resultDiv.innerHTML = '<div style="font-size:42px;">✅</div><div style="font-weight:900;">Berhasil Tersambung</div><div class="muted" style="font-size: 14px; margin-top: 8px;">Perangkat Anda telah terhubung.</div>';
+    try { if (window.__showToast) window.__showToast("Perangkat berhasil ditautkan", "success"); } catch (_) {}
+  };
+
+  const pollReady = async () => {
+    if (!currentSessionId) return;
+    try {
+      const res = await fetch('/admin/session-qr/' + encodeURIComponent(currentSessionId), {
+        headers: { 'Accept': 'application/json' }
+      });
+      const data = await res.json();
+      if (data.status === 'ready') {
+        renderReady();
+        return;
+      }
+      pollTimer = setTimeout(pollReady, 3000);
+    } catch (err) {
+      // Continue polling even on error
+      pollTimer = setTimeout(pollReady, 3000);
+    }
+  };
+
+  const openModal = (sessionId) => {
+    if (!sessionId) return;
+    stopPoll();
+    currentSessionId = sessionId;
+    title.textContent = 'Pair - ' + sessionId;
+    form.style.display = 'block';
+    
+    // Reset resultDiv
+    resultDiv.innerHTML = \`
+       <div style="font-size: 14px; font-weight: bold;">Kode Pairing Anda:</div>
+       <div id="pairingCodeText" style="font-size: 32px; font-weight: 900; letter-spacing: 4px; margin: 12px 0; padding: 12px; background: rgba(0,0,0,0.05); border-radius: 8px;"></div>
+       <div class="muted" style="font-size: 12px;">Buka WhatsApp &gt; Perangkat Tertaut &gt; Tautkan dengan Nomor Telepon. Lalu masukkan kode di atas.</div>
+       <div class="spinner" style="margin: 16px auto 0; width: 24px; height: 24px; border-width: 3px;"></div>
+       <div class="muted" style="font-size: 11px; margin-top: 8px;">Menunggu perangkat tertaut...</div>
+    \`;
+    resultDiv.style.display = 'none';
+    phoneInput.value = '';
+    modal.classList.add('show');
+  };
+
+  openButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const sessionId = btn.getAttribute('data-session-id');
+      openModal(sessionId || '');
+    });
+  });
+
+  closeTop.addEventListener('click', closeModal);
+  closeBottom.addEventListener('click', closeModal);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!currentSessionId) return;
+    
+    const phone = phoneInput.value.trim();
+    if (!phone) return;
+
+    const btn = form.querySelector('button[type="submit"]');
+    const originalText = btn.textContent;
+    btn.textContent = "Meminta...";
+    btn.disabled = true;
+
+    try {
+      const res = await fetch('/admin/session-pairing-code/' + encodeURIComponent(currentSessionId), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ phoneNumber: phone })
+      });
+      const data = await res.json();
+      
+      if (data.status === 'success' && data.code) {
+        form.style.display = 'none';
+        resultDiv.style.display = 'block';
+        document.getElementById("pairingCodeText").textContent = data.code;
+        if (window.__showToast) window.__showToast("Kode berhasil didapatkan", "success");
+        pollReady();
+      } else {
+        const errMsg = data.message || "Gagal mendapatkan kode";
+        if (window.__showToast) window.__showToast(errMsg, "error");
+        else alert(errMsg);
+      }
+    } catch (err) {
+      if (window.__showToast) window.__showToast("Terjadi kesalahan jaringan", "error");
+      else alert("Terjadi kesalahan jaringan");
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  });
 })();
         `,
       }}

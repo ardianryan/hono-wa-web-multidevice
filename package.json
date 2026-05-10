@@ -11,6 +11,8 @@
     "db:push": "drizzle-kit push --config ./drizzle.config.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1045.0",
+    "@aws-sdk/s3-request-presigner": "^3.1045.0",
     "@hono/node-server": "^1.19.13",
     "@tanstack/ai": "^0.14.0",
     "@tanstack/ai-anthropic": "^0.8.2",

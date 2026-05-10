@@ -87,20 +87,27 @@ Contoh setting yang sudah ada:
 - UI pengaturan webhook ada di `GET /admin/sessions` (tombol **Webhook** per session).
 - Persist webhook via endpoint `POST /admin/sessions/webhook` (validasi session milik user, validasi URL http/https, simpan ke DB).
 
-### 5) AI Chat Room & Reasoning Logic
+### 5) Fitur Pairing dengan Nomor Telepon (Tanpa QR)
+
+- Pengguna dapat menghubungkan perangkat mobile dengan server tanpa perlu scan QR Code.
+- Di UI `GET /admin/sessions`, terdapat tombol **Pair with Phone**.
+- Flow: Pengguna memasukkan nomor WhatsApp, aplikasi akan menembak `POST /admin/session-pairing-code/:sessionId`, yang memanggil `client.requestPairingCode(phone)` dari `whatsapp-web.js`.
+- Sebuah 8 digit Pairing Code akan digenerate, kemudian pengguna memasukkannya pada opsi 'Tautkan dengan Nomor Telepon' di WhatsApp mobile.
+
+### 6) AI Chat Room & Reasoning Logic
 
 - Database: Tabel `ai_chats` memiliki kolom `reasoning` (TEXT, nullable).
 - Pola Simpan: Gunakan `saveAiChatMessage` di `ai.service.ts`. Simpan proses berpikir AI ke kolom `reasoning`.
 - UI: Komponen `AiChatRoom` mem-parsing data `reasoning` untuk ditampilkan dalam blok terpisah (Thinking Process).
 - Model: `gemma-4-31b-it` (Teks), `imagen-4.0-fast-generate-001` (Gambar).
 
-### 6) Testing Suite (Industrial Standard)
+### 7) Testing Suite (Industrial Standard)
 
 - Semua logika bisnis WAJIB ditest di `src/backend/test/`.
 - Perintah: `npm test` (run) atau `npm test -- --coverage` (report).
 - File test utama: `ai.service.test.ts`, `message.service.test.ts`, `media.service.test.ts`, `auth.test.ts`.
 
-### 7) Drizzle ORM (Database)
+### 8) Drizzle ORM (Database)
   - Fallback: `PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD`
 
 Catatan Docker:
