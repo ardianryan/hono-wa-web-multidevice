@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+      - ryan
+    tags:
+      - 'v*'
 
 jobs:
   build-and-push:
@@ -26,6 +29,8 @@ jobs:
         with:
           context: .
           push: true
-          tags: ardianryan/honowa-development:1.1.0-dev
+          tags: |
+            ardianryan/hono-wa-web-multidevice:latest
+            ardianryan/hono-wa-web-multidevice:1.0.0
           cache-from: type=gha
           cache-to: type=gha,mode=max
