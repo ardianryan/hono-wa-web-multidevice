@@ -28,6 +28,6 @@ jobs:
           push: true
           tags: |
             ardianryan/hono-wa-web-multidevice:latest
-            ardianryan/hono-wa-web-multidevice:1.1.0-dev
+            ardianryan/hono-wa-web-multidevice:1.0.0
           cache-from: type=gha
           cache-to: type=gha,mode=max
