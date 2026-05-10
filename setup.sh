@@ -49,9 +49,10 @@ else
     echo "ℹ️  .env file already exists, skipping."
 fi
 
-# 5. Build/Pull and Run
-echo "🐳 Starting services with Docker Compose..."
-$DOCKER_COMPOSE up -d --build
+# 5. Pull and Run
+echo "🐳 Pulling latest image and starting services..."
+$DOCKER_COMPOSE pull
+$DOCKER_COMPOSE up -d
 
 echo "----------------------------------------------------"
 echo "✅ HonoWA has been successfully installed and started!"

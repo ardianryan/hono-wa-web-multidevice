@@ -1,6 +1,6 @@
 services:
   wa-api:
-    build: .
+    image: ardianryan/hono-wa-web-multidevice:latest
     container_name: wa-api-service-honojs
     restart: unless-stopped
     ports:

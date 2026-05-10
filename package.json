@@ -1,6 +1,7 @@
 {
   "name": "whatsapp-status-app",
   "license": "CC-BY-NC-ND-4.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "npm run build:client && tsx watch src/index.ts",
