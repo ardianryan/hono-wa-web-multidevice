@@ -26,6 +26,8 @@ jobs:
         with:
           context: .
           push: true
-          tags: ardianryan/honowa-development:1.1.0-dev
+          tags: |
+            ardianryan/hono-wa-web-multidevice:latest
+            ardianryan/hono-wa-web-multidevice:1.1.0-dev
           cache-from: type=gha
           cache-to: type=gha,mode=max

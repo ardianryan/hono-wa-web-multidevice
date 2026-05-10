@@ -18,6 +18,8 @@
   <a href="https://vercel.com/new/clone?repository-url=https://github.com/ardianryan/hono-wa-web-multidevice">
     <img src="https://vercel.com/button" alt="Deploy with Vercel" />
   </a>
+  <br /><br />
+  <h3><a href="DOCUMENTATION.md">📚 Baca Dokumentasi Lengkap (Panduan, Setup, Webhook, AI)</a></h3>
 </div>
 
 
@@ -187,7 +189,7 @@ docker run -d \
   -v $(pwd)/.wwebjs_auth:/app/.wwebjs_auth \
   -v $(pwd)/.wwebjs_cache:/app/.wwebjs_cache \
   -v $(pwd)/public/assets/uploads:/app/public/assets/uploads \
-  your-username/hono-wa-web-multidevice:latest
+  ardianryan/hono-wa-web-multidevice:latest
 ```
 
 ### Volume Wajib (Data Persistence)
