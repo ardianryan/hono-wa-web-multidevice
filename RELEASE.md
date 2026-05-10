@@ -20,8 +20,9 @@ HonoWA v1.0.0 hadir dengan fitur-fitur tangguh berikut:
 - **Broadcast System**: Mengirim pesan massal dengan fitur delay/jeda otomatis (anti-ban protection).
 - **Status Update**: Mempublikasikan WhatsApp Status (teks & media) via API.
 
-### 3. GOWA-style Webhooks
-- Meneruskan pesan masuk secara real-time ke aplikasi automasi (seperti n8n, Zapier, Make, atau custom backend) dengan format GOWA (`device_id`, `event`, `payload`).
+### 3. GOWA-style Webhooks & n8n Integration
+- Meneruskan pesan masuk secara real-time ke aplikasi automasi dengan format GOWA (`device_id`, `event`, `payload`).
+- **Official n8n Support**: Kompatibel penuh dengan community node **`n8n-nodes-honowa`**, memungkinkan Anda membangun alur kerja automasi WhatsApp tanpa kode di platform n8n.
 - **LID Resolving Otomatis**: Menangani format nomor internal WhatsApp terbaru (`@lid`) dan mengubahnya menjadi format standar (`@c.us`) agar siap dibalas.
 
 ### 4. Integrasi Penyimpanan Cloudflare R2

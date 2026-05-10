@@ -77,23 +77,11 @@ Webhook digunakan untuk mengirimkan data (seperti pesan masuk) dari HonoWA ke ap
 2. Klik tombol **Webhook** pada sesi yang diinginkan.
 3. Masukkan URL webhook (contoh: URL dari webhook n8n). Anda bisa memasukkan lebih dari 1 URL dengan memisahkannya menggunakan koma.
 
-### Format Webhook (GOWA-style)
-HonoWA akan mem-POST data JSON dengan struktur berikut:
-```json
-{
-  "device_id": "6285155030300@c.us",
-  "event": "message",
-  "payload": {
-    "id": "3BCB9C0058E0859C4ADD",
-    "from": "62819641172@c.us",
-    "from_name": "John Doe",
-    "chat_id": "62819641172@c.us",
-    "body": "Halo, apa kabar?",
-    "timestamp": 1715345000
-  }
-}
-```
-*Catatan: HonoWA sudah otomatis menerjemahkan format WhatsApp LID internal ke format nomor telepon biasa (`@c.us`) agar mempermudah Anda dalam membalas pesan.*
+### Integrasi n8n (Tanpa Kode)
+Untuk pengguna n8n, Anda tidak perlu repot mengatur webhook secara manual. Anda bisa menggunakan node komunitas resmi:
+1. Di n8n, cari dan instal node: `n8n-nodes-honowa`.
+2. Gunakan node **HonoWA** untuk mengirim pesan, mengelola grup, atau mendengarkan pesan masuk secara otomatis.
+3. Dokumentasi node bisa dilihat di: [npmjs.com/package/n8n-nodes-honowa](https://www.npmjs.com/package/n8n-nodes-honowa)
 
 ---
 

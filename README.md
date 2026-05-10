@@ -43,7 +43,7 @@
 
 ## 🚀 Sekilas Tentang HonoWA
 
-**HonoWA** adalah ekosistem manajemen WhatsApp modern berbasis **Hono.js** yang mengedepankan performa, keamanan, dan kecerdasan buatan. Menggunakan arsitektur **Service Layer** yang bersih, HonoWA memudahkan integrasi API WhatsApp dengan model AI tercanggih (Gemini, GPT, Claude) serta dilengkapi dengan sistem pengujian otomatis (**Testing Suite**) yang komprehensif.
+**HonoWA** adalah ekosistem manajemen WhatsApp modern berbasis **Hono.js** yang mengedepankan performa, keamanan, dan kecerdasan buatan. Menggunakan arsitektur **Service Layer** yang bersih, HonoWA memudahkan integrasi API WhatsApp dengan model AI tercanggih (Gemini, GPT, Claude) serta didukung penuh oleh node n8n resmi **[`n8n-nodes-honowa`](https://www.npmjs.com/package/n8n-nodes-honowa)** untuk automasi tanpa kode.
 
 ### 🛠️ Tech Stack Utama
 
