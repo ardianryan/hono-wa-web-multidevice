@@ -18,6 +18,8 @@
   <a href="https://vercel.com/new/clone?repository-url=https://github.com/ardianryan/hono-wa-web-multidevice">
     <img src="https://vercel.com/button" alt="Deploy with Vercel" />
   </a>
+  <br /><br />
+  <h3><a href="DOCUMENTATION.md">📚 Baca Dokumentasi Lengkap (Panduan, Setup, Webhook, AI)</a></h3>
 </div>
 
 
@@ -41,7 +43,7 @@
 
 ## 🚀 Sekilas Tentang HonoWA
 
-**HonoWA** adalah ekosistem manajemen WhatsApp modern berbasis **Hono.js** yang mengedepankan performa, keamanan, dan kecerdasan buatan. Menggunakan arsitektur **Service Layer** yang bersih, HonoWA memudahkan integrasi API WhatsApp dengan model AI tercanggih (Gemini, GPT, Claude) serta dilengkapi dengan sistem pengujian otomatis (**Testing Suite**) yang komprehensif.
+**HonoWA** adalah ekosistem manajemen WhatsApp modern berbasis **Hono.js** yang mengedepankan performa, keamanan, dan kecerdasan buatan. Menggunakan arsitektur **Service Layer** yang bersih, HonoWA memudahkan integrasi API WhatsApp dengan model AI tercanggih (Gemini, GPT, Claude) serta didukung penuh oleh node n8n resmi **[`n8n-nodes-honowa`](https://www.npmjs.com/package/n8n-nodes-honowa)** untuk automasi tanpa kode.
 
 ### 🛠️ Tech Stack Utama
 
@@ -187,7 +189,7 @@ docker run -d \
   -v $(pwd)/.wwebjs_auth:/app/.wwebjs_auth \
   -v $(pwd)/.wwebjs_cache:/app/.wwebjs_cache \
   -v $(pwd)/public/assets/uploads:/app/public/assets/uploads \
-  your-username/hono-wa-web-multidevice:latest
+  ardianryan/hono-wa-web-multidevice:latest
 ```
 
 ### Volume Wajib (Data Persistence)
