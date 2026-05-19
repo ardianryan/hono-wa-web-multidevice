@@ -53,6 +53,13 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--disable-gpu",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--disable-extensions",
+        "--disable-default-apps",
+        "--mute-audio",
+        "--no-zygote",
+        "--js-flags=--max-old-space-size=256",
       ],
       bypassCSP: true,
       executablePath:
@@ -143,7 +150,15 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
             }
           }
         } catch (err: any) {
-          console.error(`[${sessionId}] Failed to process media:`, err.message ?? err);
+          const errMsg = err.message ?? String(err);
+          const isHarmless =
+            errMsg.includes("Getter was called with undefined data") ||
+            errMsg.includes("mediaStage") ||
+            errMsg.includes("undefined (reading 'media')");
+          
+          if (!isHarmless) {
+            console.error(`[${sessionId}] Failed to process media:`, errMsg);
+          }
         }
       }
 
