@@ -80,97 +80,128 @@ export const getOrCreateSession = (sessionId: string): SessionData => {
   persistSession(sessionId, sessionData);
 
   client.on("qr", (qr: string) => {
-    sessionData.status = SESSION_STATUS.PENDING_PAIRING;
-    sessionData.qr = qr;
-    persistSession(sessionId, sessionData);
-    console.log(`[${sessionId}] QR/Pairing code diminta`);
-    webhookSessionQR(sessionId, qr);
+    try {
+      sessionData.status = SESSION_STATUS.PENDING_PAIRING;
+      sessionData.qr = qr;
+      persistSession(sessionId, sessionData);
+      console.log(`[${sessionId}] QR/Pairing code diminta`);
+      webhookSessionQR(sessionId, qr);
+    } catch (err: any) {
+      console.error(`[${sessionId}] Error in qr event handler:`, err.message ?? err);
+    }
   });
 
   client.on("ready", () => {
-    sessionData.status = SESSION_STATUS.READY;
-    sessionData.readyAt = new Date().toISOString();
-    sessionData.qr = undefined;
-    persistSession(sessionId, sessionData);
-    console.log(`[${sessionId}] SIAP digunakan`);
-    const deviceId = client.info?.wid?._serialized ?? sessionId;
-    webhookSessionReady(sessionId, deviceId);
+    try {
+      sessionData.status = SESSION_STATUS.READY;
+      sessionData.readyAt = new Date().toISOString();
+      sessionData.qr = undefined;
+      persistSession(sessionId, sessionData);
+      console.log(`[${sessionId}] SIAP digunakan`);
+      const deviceId = client.info?.wid?._serialized ?? sessionId;
+      webhookSessionReady(sessionId, deviceId);
+    } catch (err: any) {
+      console.error(`[${sessionId}] Error in ready event handler:`, err.message ?? err);
+    }
   });
 
   client.on("message", async (msg: any) => {
-    const isGroup = msg.from.endsWith("@g.us");
-    const deviceId = client.info?.wid?._serialized ?? sessionId;
-    const contact = await msg.getContact();
-    const fromName = contact.pushname || contact.name || msg._data?.notifyName || "Unknown";
+    try {
+      const isGroup = msg.from.endsWith("@g.us");
+      const deviceId = client.info?.wid?._serialized ?? sessionId;
+      
+      let contact: any = null;
+      let fromName = "Unknown";
+      let senderJid = msg.from;
 
-    // Resolve LID to traditional phone JID (@c.us)
-    const senderJid = contact.id._serialized.includes("@c.us")
-      ? contact.id._serialized
-      : contact.number
-        ? `${contact.number}@c.us`
-        : msg.from;
-
-    let mediaPayload: any = undefined;
-
-    if (msg.hasMedia) {
-      mediaPayload = { caption: msg.body };
       try {
-        const media = await msg.downloadMedia();
-        if (media && media.data) {
-          const buffer = Buffer.from(media.data, "base64");
-          const ext = media.mimetype ? media.mimetype.split("/")[1]?.split(";")[0] : "bin";
-          const uploadedUrl = await uploadToR2(buffer, media.mimetype, ext);
-          if (uploadedUrl) {
-            mediaPayload.url = uploadedUrl;
-            mediaPayload.mimetype = media.mimetype;
-            mediaPayload.filename = media.filename;
-          }
-        }
-      } catch (err: any) {
-        console.error(`[${sessionId}] Failed to process media:`, err.message ?? err);
+        contact = await msg.getContact();
+        fromName = contact.pushname || contact.name || msg._data?.notifyName || "Unknown";
+        senderJid = contact.id._serialized.includes("@c.us")
+          ? contact.id._serialized
+          : contact.number
+            ? `${contact.number}@c.us`
+            : msg.from;
+      } catch (contactErr: any) {
+        console.error(`[${sessionId}] Failed to get contact info:`, contactErr.message ?? contactErr);
       }
-    }
 
-    webhookMessageReceived(sessionId, deviceId, {
-      messageId: msg.id._serialized,
-      from: senderJid,
-      from_name: fromName,
-      to: msg.to,
-      body: msg.body,
-      type: msg.type,
-      isGroup,
-      groupId: isGroup ? msg.from : undefined,
-      timestamp: msg.timestamp,
-      ...(mediaPayload ? { media: mediaPayload } : {}),
-    });
+      let mediaPayload: any = undefined;
+
+      if (msg.hasMedia) {
+        mediaPayload = { caption: msg.body };
+        try {
+          const media = await msg.downloadMedia();
+          if (media && media.data) {
+            const buffer = Buffer.from(media.data, "base64");
+            const ext = media.mimetype ? media.mimetype.split("/")[1]?.split(";")[0] : "bin";
+            const uploadedUrl = await uploadToR2(buffer, media.mimetype, ext);
+            if (uploadedUrl) {
+              mediaPayload.url = uploadedUrl;
+              mediaPayload.mimetype = media.mimetype;
+              mediaPayload.filename = media.filename;
+            }
+          }
+        } catch (err: any) {
+          console.error(`[${sessionId}] Failed to process media:`, err.message ?? err);
+        }
+      }
+
+      webhookMessageReceived(sessionId, deviceId, {
+        messageId: msg.id._serialized,
+        from: senderJid,
+        from_name: fromName,
+        to: msg.to,
+        body: msg.body,
+        type: msg.type,
+        isGroup,
+        groupId: isGroup ? msg.from : undefined,
+        timestamp: msg.timestamp,
+        ...(mediaPayload ? { media: mediaPayload } : {}),
+      });
+    } catch (err: any) {
+      console.error(`[${sessionId}] Error in message event handler:`, err.message ?? err);
+    }
   });
 
   client.on("disconnected", (reason: string) => {
-    const deviceId = client.info?.wid?._serialized ?? sessionId;
-    sessionData.status = SESSION_STATUS.DISCONNECTED;
-    persistSession(sessionId, sessionData);
-    console.log(`[${sessionId}] Terputus: ${reason}`);
-    webhookSessionDisconnected(sessionId, deviceId, reason);
+    try {
+      const deviceId = client.info?.wid?._serialized ?? sessionId;
+      sessionData.status = SESSION_STATUS.DISCONNECTED;
+      persistSession(sessionId, sessionData);
+      console.log(`[${sessionId}] Terputus: ${reason}`);
+      webhookSessionDisconnected(sessionId, deviceId, reason);
 
-    setTimeout(async () => {
-      if (sessions.get(sessionId)?.status === SESSION_STATUS.DISCONNECTED) {
+      setTimeout(async () => {
         try {
-          await client.destroy();
-        } catch {}
-        sessions.delete(sessionId);
-        removeSessionFromFile(sessionId);
-        console.log(`[${sessionId}] Dihapus dari memori & browser dimatikan`);
-      }
-    }, 30_000);
+          if (sessions.get(sessionId)?.status === SESSION_STATUS.DISCONNECTED) {
+            try {
+              await client.destroy();
+            } catch {}
+            sessions.delete(sessionId);
+            removeSessionFromFile(sessionId);
+            console.log(`[${sessionId}] Dihapus dari memori & browser dimatikan`);
+          }
+        } catch (err: any) {
+          console.error(`[${sessionId}] Error in disconnected timeout handler:`, err.message ?? err);
+        }
+      }, 30_000);
+    } catch (err: any) {
+      console.error(`[${sessionId}] Error in disconnected event handler:`, err.message ?? err);
+    }
   });
 
   client.on("auth_failure", async (msg: string) => {
-    console.error(`[${sessionId}] Auth gagal:`, msg);
     try {
-      await client.destroy();
-    } catch {}
-    sessions.delete(sessionId);
-    removeSessionFromFile(sessionId);
+      console.error(`[${sessionId}] Auth gagal:`, msg);
+      try {
+        await client.destroy();
+      } catch {}
+      sessions.delete(sessionId);
+      removeSessionFromFile(sessionId);
+    } catch (err: any) {
+      console.error(`[${sessionId}] Error in auth_failure event handler:`, err.message ?? err);
+    }
   });
 
   client.initialize().catch((err: Error) => {
