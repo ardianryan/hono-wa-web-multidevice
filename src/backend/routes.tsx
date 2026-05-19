@@ -1515,6 +1515,17 @@ router.post("/admin/status/create", requireAuth, async (c) => {
     }
 
     if (mediaUrl) {
+      try {
+        await sessionData.client.pupPage?.evaluate(() => {
+          try {
+            const gating = window.require("WAWebStatusGatingUtils");
+            if (gating && typeof gating.canCheckStatusRankingPosterGating !== "function") {
+              gating.canCheckStatusRankingPosterGating = () => false;
+            }
+          } catch (e) {}
+        });
+      } catch (e) {}
+
       const media = await MessageMedia.fromUrl(mediaUrl);
       const sent: any = await sessionData.client.sendMessage("status@broadcast", media, {
         caption: text || "",
@@ -1561,6 +1572,18 @@ router.post("/admin/status/create", requireAuth, async (c) => {
           400,
         );
       }
+
+      try {
+        await sessionData.client.pupPage?.evaluate(() => {
+          try {
+            const gating = window.require("WAWebStatusGatingUtils");
+            if (gating && typeof gating.canCheckStatusRankingPosterGating !== "function") {
+              gating.canCheckStatusRankingPosterGating = () => false;
+            }
+          } catch (e) {}
+        });
+      } catch (e) {}
+
       const sent: any = await sessionData.client.sendMessage("status@broadcast", text);
       const sentMessageIds = [String(sent?.id?._serialized ?? "")].filter(Boolean);
       await createActionLog({
