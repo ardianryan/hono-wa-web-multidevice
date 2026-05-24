@@ -36,7 +36,7 @@ UI siap diakses di: **http://localhost:4000/login**
 ```yaml
 services:
   wa-api:
-    image: username/hono-wa-web-multidevice:v2
+    image: ardianryan/hono-wa-web-multidevice:latest
     container_name: wa-api-service-honojs
     restart: unless-stopped
     ports:

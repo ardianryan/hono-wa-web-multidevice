@@ -141,6 +141,7 @@ import { createWhatsAppStatus, resendStatus } from "./service/status.service.js"
 import { handleAiChat, handleAiImage, getAiChatHistory, deleteAllAiChatHistory } from "./service/ai.service.js";
 // import { MessageMedia } from "whatsapp-web.js";
 import { removeSessionFromFile } from "./session/session-store.js";
+import { MessageMedia } from "whatsapp-web.js";
 
 
 router.get("/login", async (c) => {
@@ -1242,12 +1243,121 @@ router.post("/admin/status/create", requireAuth, async (c) => {
   }
 
   try {
-    await createWhatsAppStatus({
-      userId: user.id,
-      sessionId,
-      text,
-      mediaUrl,
-    });
+    const sessionData = sessions.get(sessionId) ?? getOrCreateSession(sessionId);
+    if (sessionData.status !== SESSION_STATUS.READY) {
+      try {
+        await createActionLog({
+          userId: user.id,
+          sessionId,
+          actionType: "status",
+          payload: { text, mediaUrl: mediaUrl || null },
+          success: false,
+          error: `not_ready:${sessionData.status}`,
+        });
+      } catch { }
+      const history = await listActionLogs({
+        authUser: user,
+        actionType: "status",
+        sessionId,
+        limit: 25,
+      });
+      return c.html(
+        <StatusPage
+          appName={appName}
+          username={user.username}
+          appDescription={appDescription}
+          logoUrl={appLogoUrl}
+          avatarUrl={avatarUrl}
+          role={user.role}
+          waSessions={waSessions as any}
+          selectedSessionId={sessionId}
+          history={history as any}
+          alert={`Sesi belum siap. Status: ${sessionData.status}`}
+        />,
+        400,
+      );
+    }
+
+    if (mediaUrl) {
+      try {
+        await sessionData.client.pupPage?.evaluate(() => {
+          try {
+            const gating = window.require("WAWebStatusGatingUtils");
+            if (gating && typeof gating.canCheckStatusRankingPosterGating !== "function") {
+              gating.canCheckStatusRankingPosterGating = () => false;
+            }
+          } catch (e) { }
+        });
+      } catch (e) { }
+
+      const media = await MessageMedia.fromUrl(mediaUrl);
+      const sent: any = await sessionData.client.sendMessage("status@broadcast", media, {
+        caption: text || "",
+      });
+      const sentMessageIds = [String(sent?.id?._serialized ?? "")].filter(Boolean);
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "status",
+        payload: { text, mediaUrl: mediaUrl || null, sentMessageIds },
+        success: true,
+      });
+    } else {
+      if (!text) {
+        try {
+          await createActionLog({
+            userId: user.id,
+            sessionId,
+            actionType: "status",
+            payload: { text, mediaUrl: null },
+            success: false,
+            error: "missing_text",
+          });
+        } catch { }
+        const history = await listActionLogs({
+          authUser: user,
+          actionType: "status",
+          sessionId,
+          limit: 25,
+        });
+        return c.html(
+          <StatusPage
+            appName={appName}
+            username={user.username}
+            appDescription={appDescription}
+            logoUrl={appLogoUrl}
+            avatarUrl={avatarUrl}
+            role={user.role}
+            waSessions={waSessions as any}
+            selectedSessionId={sessionId}
+            history={history as any}
+            alert='Field "text" wajib diisi jika tanpa media'
+          />,
+          400,
+        );
+      }
+
+      try {
+        await sessionData.client.pupPage?.evaluate(() => {
+          try {
+            const gating = window.require("WAWebStatusGatingUtils");
+            if (gating && typeof gating.canCheckStatusRankingPosterGating !== "function") {
+              gating.canCheckStatusRankingPosterGating = () => false;
+            }
+          } catch (e) { }
+        });
+      } catch (e) { }
+
+      const sent: any = await sessionData.client.sendMessage("status@broadcast", text);
+      const sentMessageIds = [String(sent?.id?._serialized ?? "")].filter(Boolean);
+      await createActionLog({
+        userId: user.id,
+        sessionId,
+        actionType: "status",
+        payload: { text, mediaUrl: null, sentMessageIds },
+        success: true,
+      });
+    }
     return c.redirect(
       withToast(
         `/admin/status?sessionId=${encodeURIComponent(sessionId)}`,

@@ -26,6 +26,17 @@ jobs:
         with:
           context: .
           push: true
-          tags: ardianryan/honowa-development:1.1.0-dev
+          tags: |
+            ardianryan/hono-wa-web-multidevice:latest
+            ardianryan/hono-wa-web-multidevice:1.0.0
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Update Docker Hub Description
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ardianryan/hono-wa-web-multidevice
+          short-description: "HonoWA — Advanced WhatsApp API & Admin Dashboard with AI Integration"
+          readme-filepath: ./Dockerhub.md
