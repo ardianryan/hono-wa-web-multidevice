@@ -62,3 +62,31 @@ export const requireApiKey: MiddlewareHandler<{ Variables: { authUser: User } }>
   c.set("authUser", user);
   await next();
 };
+
+export const requireAuthOrApiKey: MiddlewareHandler<{ Variables: { authUser: User } }> = async (
+  c,
+  next,
+) => {
+  let user = await getAuthUser(c);
+  
+  if (!user) {
+    const apiKey = getApiKeyFromRequest(c);
+    if (apiKey) {
+      user = await getUserByApiKey(apiKey);
+    }
+  }
+
+  if (!user) {
+    // Jika tidak ada session maupun api key
+    return c.json({ error: "unauthorized", message: "Missing or invalid authentication (Cookie / API Key)" }, 401);
+  }
+
+  const maintenance = await getMaintenanceMode();
+  if (maintenance && user.role !== "admin") {
+    return c.json({ error: "maintenance_mode" }, 403);
+  }
+
+  c.set("authUser", user);
+  await next();
+};
+

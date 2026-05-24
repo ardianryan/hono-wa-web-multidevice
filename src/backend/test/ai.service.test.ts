@@ -131,7 +131,7 @@ describe('ai.service — saveAiChatMessage', () => {
       conversationId: 'c1',
       role: 'assistant',
       content: 'Hello there',
-      model: 'gemma-4-31b-it',
+      model: 'gemini-2.5-flash',
     });
 
     expect(mockInsert).toHaveBeenCalledWith(expect.anything());
@@ -143,7 +143,7 @@ describe('ai.service — saveAiChatMessage', () => {
         role: 'assistant',
         content: 'Hello there',
         reasoning: null,
-        model: 'gemma-4-31b-it',
+        model: 'gemini-2.5-flash',
       })
     );
   });
@@ -177,7 +177,7 @@ describe('ai.service — saveAiChatMessage', () => {
     });
 
     expect(insertValues).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'gemma-4-31b-it' })
+      expect.objectContaining({ model: 'gemini-2.5-flash' })
     );
   });
 });
