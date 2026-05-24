@@ -139,9 +139,10 @@ import {
 import { createWhatsAppStatus, resendStatus } from "./service/status.service.js";
 
 import { handleAiChat, handleAiImage, getAiChatHistory, deleteAllAiChatHistory } from "./service/ai.service.js";
-// import { MessageMedia } from "whatsapp-web.js";
+
 import { removeSessionFromFile } from "./session/session-store.js";
-import { MessageMedia } from "whatsapp-web.js";
+import pkg from "whatsapp-web.js";
+const { MessageMedia } = pkg;
 
 
 router.get("/login", async (c) => {
