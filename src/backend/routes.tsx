@@ -1283,7 +1283,12 @@ router.post("/admin/status/create", requireAuth, async (c) => {
       try {
         await sessionData.client.pupPage?.evaluate(() => {
           try {
-            const gating = window.require("WAWebStatusGatingUtils");
+            if ((window as any).Store && (window as any).Store.StatusUtils) {
+              if (typeof (window as any).Store.StatusUtils.canCheckStatusRankingPosterGating !== "function") {
+                (window as any).Store.StatusUtils.canCheckStatusRankingPosterGating = () => false;
+              }
+            }
+            const gating = (window as any).require("WAWebStatusGatingUtils");
             if (gating && typeof gating.canCheckStatusRankingPosterGating !== "function") {
               gating.canCheckStatusRankingPosterGating = () => false;
             }
@@ -1341,7 +1346,12 @@ router.post("/admin/status/create", requireAuth, async (c) => {
       try {
         await sessionData.client.pupPage?.evaluate(() => {
           try {
-            const gating = window.require("WAWebStatusGatingUtils");
+            if ((window as any).Store && (window as any).Store.StatusUtils) {
+              if (typeof (window as any).Store.StatusUtils.canCheckStatusRankingPosterGating !== "function") {
+                (window as any).Store.StatusUtils.canCheckStatusRankingPosterGating = () => false;
+              }
+            }
+            const gating = (window as any).require("WAWebStatusGatingUtils");
             if (gating && typeof gating.canCheckStatusRankingPosterGating !== "function") {
               gating.canCheckStatusRankingPosterGating = () => false;
             }
