@@ -14,7 +14,9 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1045.0",
     "@aws-sdk/s3-request-presigner": "^3.1045.0",
+    "@hono/mcp": "^0.3.0",
     "@hono/node-server": "^1.19.13",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@tanstack/ai": "^0.14.0",
     "@tanstack/ai-anthropic": "^0.8.2",
     "@tanstack/ai-gemini": "^0.10.0",

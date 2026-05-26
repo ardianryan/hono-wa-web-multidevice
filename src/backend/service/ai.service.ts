@@ -10,11 +10,11 @@ import { eq, and, desc } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 
 
-const DEFAULT_MODEL = "gemma-4-31b-it";
-const DEFAULT_IMAGE_MODEL = "gemini-3.1-flash-image-preview";
+export const DEFAULT_MODEL = "gemini-2.5-flash";
+export const DEFAULT_IMAGE_MODEL = "imagen-4.0-generate-001";
 
 
-const getAdapter = (modelName: string) => {
+export const getAdapter = (modelName: string) => {
   if (modelName.startsWith("gpt") || modelName.includes("openai")) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
@@ -34,7 +34,7 @@ const getAdapter = (modelName: string) => {
   return createGeminiChat(modelName as any, apiKey);
 };
 
-const getImageAdapter = (modelName: string) => {
+export const getImageAdapter = (modelName: string) => {
   if (modelName.startsWith("dall-e") || modelName.includes("openai")) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
@@ -48,6 +48,7 @@ const getImageAdapter = (modelName: string) => {
   if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
   return (geminiImage as any)(modelName, apiKey);
 };
+
 
 
 type MessageRole = "user" | "assistant" | "tool";
